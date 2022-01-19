@@ -101,7 +101,7 @@ imp1 <- importance(rfout, type = 2) %>% as.data.frame() %>% sort(decreasing = TR
 
 
 ```{r}
-rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
                  data = df_wy_0)
 
 print(rfout)
@@ -112,7 +112,7 @@ print(importance(rfout,type = 2))
 
 
 ```{r}
-rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
                  data = df_wy_2)
 
 print(rfout)
