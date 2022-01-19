@@ -9,11 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
+library(here)
 library(randomForest)
 ```
 
 ```{r}
-df <- read_csv("/Users/petermenzies/MEDS/Capstone/sageres.csv/sageres.csv")
+df <- read_csv(here("data", "sageres.csv"))
 ```
 
 ```{r}
