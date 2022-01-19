@@ -1,0 +1,122 @@
+---
+title: "Sagehen Data Exploration"
+author: "Peter Menzies"
+date: "1/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(randomForest)
+```
+
+```{r}
+df <- read_csv("/Users/petermenzies/MEDS/Capstone/sageres.csv/sageres.csv")
+```
+
+```{r}
+print(nrow(df))
+print(ncol(df))
+
+print(names(df))
+```
+
+
+```{r}
+head(df)
+```
+
+
+```{r}
+(unique(df$stratumID))
+(unique(df$patchID))
+(unique(df$zoneID))
+```
+
+```{r}
+unique(df$month)
+```
+
+
+```{r}
+df_apr <- df %>% 
+  filter(month == 4, year == 2020)
+```
+
+```{r}
+df_by_wy <- df %>% 
+  group_by(wy, stratumID, clim, scen) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  select(-day, -month, -year, -basinID, -hillID, -zoneID, -patchID)
+```
+
+```{r}
+df_by_wy <- df_by_wy %>% 
+  mutate(water_efficiency = npp / trans)
+```
+
+```{r}
+df_wy_0 <- df_by_wy %>% 
+  filter(clim == 0)
+
+df_wy_2 <- df_by_wy %>% 
+  filter(clim == 2)
+```
+
+
+```{r}
+ggplot(df_wy_0, aes(x = rz_storage, y = water_efficiency)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+ggplot(df_wy_2, aes(x = rz_storage, y = water_efficiency)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+```{r}
+ggplot(df_wy_0, aes(x = tmax, y = water_efficiency)) +
+  geom_point() + 
+  geom_smooth()
+
+ggplot(df_wy_2, aes(x = tmax, y = water_efficiency)) +
+  geom_point() + 
+  geom_smooth()
+```
+
+
+```{r}
+rfout <- randomForest(formula = npp ~ tmax  + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+                 data = df_by_wy)
+
+print(rfout)
+
+imp1 <- importance(rfout, type = 2) %>% as.data.frame() %>% sort(decreasing = TRUE) %>% rownames_to_column("variable")
+```
+
+*IncNodePurity* (increase in node purity) the total decrease in node impurities, measured by the Gini Index
+
+
+```{r}
+rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+                 data = df_wy_0)
+
+print(rfout)
+
+print(importance(rfout,type = 2))
+```
+
+
+
+```{r}
+rfout <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+                 data = df_wy_2)
+
+print(rfout)
+
+print(importance(rfout,type = 2))
+```
+
+
