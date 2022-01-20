@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(randomForest)
+library(randomForestExplainer)
 ```
 
 ```{r}
@@ -86,7 +87,9 @@ ggplot(df_wy_2, aes(x = tmax, y = water_efficiency)) +
   geom_point() + 
   geom_smooth()
 ```
+## Random Forest Exploration
 
+Comparing node purity increase among variables explaining npp
 
 ```{r}
 rfout <- randomForest(formula = npp ~ tmax  + tmin + aspect + slope + clim + swe + scen + elev + precip,     
@@ -143,6 +146,10 @@ purity_clim2 <- rfout_clim2$importance %>%
 purity_clim2 <- purity_clim2[order(purity_clim2$inc_node_purity, decreasing = TRUE), ]
 
 purity_clim2
+```
+
+```{r}
+randomForestExplainer::explain_forest(randomForest::importance(rfout, type = 2))
 ```
 
 
