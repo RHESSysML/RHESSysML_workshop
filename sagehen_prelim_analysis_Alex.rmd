@@ -1,0 +1,196 @@
+---
+title: "rhessys explore"
+author: "Alex Clippinger"
+date: "1/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(kableExtra)
+```
+
+# Load data
+
+```{r}
+data <- read_csv(here("data", "sageres.csv"))
+```
+
+# Simple correlation plots with independent variables and NPP
+
+```{r aggdata}
+data_agg_yearly <- data %>% 
+  filter(clim == 0) %>% 
+  mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
+                          topo == "U" ~ "Upslope",
+                          topo == "R" ~ "Riparian")) %>% 
+  select(-c(date, year, month, day, basinID, hillID, zoneID, patchID, clim, scen, aspect, slope, elev)) %>% 
+  group_by(wy, topo, stratumID) %>% 
+  summarize(across(everything(), list(mean))) %>% 
+  rename_with(~str_remove(., "_1"))
+
+plot_npp <- function(var) {
+  ggplot(data_agg_yearly, aes(x=var, y=npp, color=topo)) +
+    geom_point() +
+    geom_smooth(method="lm", se=FALSE) +
+    facet_wrap(~stratumID) +
+    theme_light() +
+    labs(y="npp",
+         x=enquo(var),
+         title=enquo(var))
+}
+```
+
+
+```{r plotannual}
+# predictor_vars <- c("lai", "height", "plantc", "cpool", "swe", "precip", "trans", 
+#                    "evap", "sat_deficit", "rz_storage", "tmax", "tmin", "tavg")
+# 
+# for (i in response_vars) {
+#   plot_npp(stat=mean, data_agg$i)
+# }
+
+plot_npp(data_agg_yearly$lai)
+plot_npp(data_agg_yearly$height)
+plot_npp(data_agg_yearly$plantc)
+plot_npp(data_agg_yearly$cpool)
+plot_npp(data_agg_yearly$swe)
+plot_npp(data_agg_yearly$precip)
+plot_npp(data_agg_yearly$trans)
+plot_npp(data_agg_yearly$evap)
+plot_npp(data_agg_yearly$sat_deficit)
+plot_npp(data_agg_yearly$rz_storage)
+plot_npp(data_agg_yearly$tmax)
+plot_npp(data_agg_yearly$tmin)
+plot_npp(data_agg_yearly$tavg)
+```
+
+```{r sd}
+data_agg_sd <- data %>% 
+  filter(clim == 0) %>% 
+  mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
+                          topo == "U" ~ "Upslope",
+                          topo == "R" ~ "Riparian")) %>% 
+  select(-c(date, year, month, day, basinID, hillID, zoneID, patchID, clim, scen, aspect, slope, elev)) %>% 
+  group_by(wy, topo, stratumID) %>% 
+  summarize(across(everything(), list(sd))) %>% 
+  rename_with(~str_remove(., "_1"))
+
+plot_npp_sd <- function(var) {
+  ggplot(data_agg_sd, aes(x=var, y=npp, color=topo)) +
+    geom_point() +
+    geom_smooth(method="lm", se=FALSE) +
+    facet_wrap(~stratumID) +
+    theme_light() +
+    labs(y="npp",
+         x=enquo(var),
+         title=enquo(var))
+}
+```
+
+```{r}
+plot_npp_sd(data_agg_sd$lai)
+plot_npp_sd(data_agg_sd$height)
+plot_npp_sd(data_agg_sd$plantc)
+plot_npp_sd(data_agg_sd$cpool)
+plot_npp_sd(data_agg_sd$swe)
+plot_npp_sd(data_agg_sd$precip)
+plot_npp_sd(data_agg_sd$trans)
+plot_npp_sd(data_agg_sd$evap)
+plot_npp_sd(data_agg_sd$sat_deficit)
+plot_npp_sd(data_agg_sd$rz_storage)
+plot_npp_sd(data_agg_sd$tmax)
+plot_npp_sd(data_agg_sd$tmin)
+plot_npp_sd(data_agg_sd$tavg)
+```
+
+# Plot SD/COV of average monthly ET, NPP, etc. by zone/topo/elev and climate scenario
+
+
+
+# Graph mean monthly ET, SWE, NPP, etc. by zone/topo/elev and climate scenario
+
+```{r plotmonths}
+data_agg_monthly <- data %>% 
+  filter(clim == 0) %>% 
+  mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
+                          topo == "U" ~ "Upslope",
+                          topo == "R" ~ "Riparian"),
+         stratumID = factor(stratumID)) %>% 
+  select(-c(date, year, wy, day, basinID, hillID, zoneID, patchID, clim, scen, aspect, slope, elev)) %>% 
+  group_by(month, topo, stratumID) %>% 
+  summarize(across(everything(), list(mean))) %>% 
+  rename_with(~str_remove(., "_1"))
+
+plot_monthly <- function(var) {
+  ggplot(data_agg_monthly, aes(x=month, y=var, color=topo)) +
+    geom_line() +
+    facet_wrap(~stratumID) +
+    theme_light() +
+    labs(y=enquo(var),
+         x="Month",
+         title=enquo(var))
+}
+```
+
+```{r plotmonthly}
+plot_monthly(data_agg$npp)
+plot_monthly(data_agg$lai)
+plot_monthly(data_agg$height)
+plot_monthly(data_agg$plantc)
+plot_monthly(data_agg$cpool)
+plot_monthly(data_agg$swe)
+plot_monthly(data_agg$precip)
+plot_monthly(data_agg$trans)
+plot_monthly(data_agg$evap)
+plot_monthly(data_agg$sat_deficit)
+plot_monthly(data_agg$rz_storage)
+plot_monthly(data_agg$tmax)
+plot_monthly(data_agg$tmin)
+plot_monthly(data_agg$tavg)
+```
+
+# Create a summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
+
+```{r}
+zones <- data %>% 
+  filter(clim==0) %>% 
+  select(c(year, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
+  ## Aggregate by year
+  group_by(year, topo, stratumID, elev, aspect, slope) %>% 
+  summarize(tmin = mean(tmin),
+            tavg = mean(tavg),
+            tmax = mean(tmax),
+            precip = sum(precip)*1000) %>% 
+  ## Aggregate by study area
+  group_by(stratumID, topo, elev, aspect, slope) %>% 
+  summarize(across(everything(), list(mean))) %>% 
+  rename_with(~str_remove(., "_1")) %>% 
+  select(-year) %>% 
+  mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
+                          topo == "U" ~ "Upslope",
+                          topo == "R" ~ "Riparian")) %>% 
+  dplyr::arrange(topo) %>% 
+  rename("Stratum"=stratumID,
+         "Topo"=topo,
+         "Elevation"=elev,
+         "Aspect"=aspect,
+         "Slope"=slope,
+         "Min Temp."=tmin,
+         "Mean Temp."=tavg,
+         "Max Temp."=tmax,
+         "Precipitation"=precip)
+
+
+
+zones_table <-  kable(zones,
+                      digits=2,
+                      caption="Summary of 6 Study Areas in Sagehen Creek",
+                      align=c("l", rep("r", ncol(zones) - 1))) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+zones_table
+```
