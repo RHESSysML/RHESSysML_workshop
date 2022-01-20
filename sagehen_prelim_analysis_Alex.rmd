@@ -13,6 +13,10 @@ library(here)
 library(kableExtra)
 ```
 
+# Question
+
+Our question is: **What are the main variables that impact NPP?** NPP is an indicator of water stress and therefore a proxy for forest mortality. The analysis below aims to show simple relationships between NPP and other key ecohydrologic variables. 
+
 # Load data
 
 ```{r}
@@ -137,21 +141,23 @@ plot_monthly <- function(var) {
 ```
 
 ```{r plotmonthly}
-plot_monthly(data_agg$npp)
-plot_monthly(data_agg$lai)
-plot_monthly(data_agg$height)
-plot_monthly(data_agg$plantc)
-plot_monthly(data_agg$cpool)
-plot_monthly(data_agg$swe)
-plot_monthly(data_agg$precip)
-plot_monthly(data_agg$trans)
-plot_monthly(data_agg$evap)
-plot_monthly(data_agg$sat_deficit)
-plot_monthly(data_agg$rz_storage)
-plot_monthly(data_agg$tmax)
-plot_monthly(data_agg$tmin)
-plot_monthly(data_agg$tavg)
+plot_monthly(data_agg_monthly$npp)
+plot_monthly(data_agg_monthly$lai)
+plot_monthly(data_agg_monthly$height)
+plot_monthly(data_agg_monthly$plantc)
+plot_monthly(data_agg_monthly$cpool)
+plot_monthly(data_agg_monthly$swe)
+plot_monthly(data_agg_monthly$precip)
+plot_monthly(data_agg_monthly$trans)
+plot_monthly(data_agg_monthly$evap)
+plot_monthly(data_agg_monthly$sat_deficit)
+plot_monthly(data_agg_monthly$rz_storage)
+plot_monthly(data_agg_monthly$tmax)
+plot_monthly(data_agg_monthly$tmin)
+plot_monthly(data_agg_monthly$tavg)
 ```
+
+NPP trends match by topography. Riparian zones see more extreme values of NPP (lower in Winter/Spring, higher in Fall)
 
 # Create a summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
 
@@ -194,3 +200,5 @@ zones_table <-  kable(zones,
 
 zones_table
 ```
+
+The 6 study areas do not appear to vary significantly in yearly average precipitation, elevation, or temperature. **The 6 study areas do vary in aspect and slope**
