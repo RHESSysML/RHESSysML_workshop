@@ -23,7 +23,9 @@ Our question is: **What are the main variables that impact NPP?** NPP is an indi
 data <- read_csv(here("data", "sageres.csv"))
 ```
 
-# Simple correlation plots with independent variables and NPP
+# Visualizations
+
+## Simple correlation plots
 
 ```{r aggdata}
 data_agg_yearly <- data %>% 
@@ -50,13 +52,6 @@ plot_npp <- function(var) {
 
 
 ```{r plotannual}
-# predictor_vars <- c("lai", "height", "plantc", "cpool", "swe", "precip", "trans", 
-#                    "evap", "sat_deficit", "rz_storage", "tmax", "tmin", "tavg")
-# 
-# for (i in response_vars) {
-#   plot_npp(stat=mean, data_agg$i)
-# }
-
 plot_npp(data_agg_yearly$lai)
 plot_npp(data_agg_yearly$height)
 plot_npp(data_agg_yearly$plantc)
@@ -71,6 +66,8 @@ plot_npp(data_agg_yearly$tmax)
 plot_npp(data_agg_yearly$tmin)
 plot_npp(data_agg_yearly$tavg)
 ```
+
+Initial scatter plots indicate that precipitation, transpiration, evaporation, soil moisture saturation deficit, and root-zone soil moisture storage correlate with net primary productivity.
 
 ```{r sd}
 data_agg_sd <- data %>% 
@@ -95,6 +92,8 @@ plot_npp_sd <- function(var) {
 }
 ```
 
+Initial scatter plots comparing the variation in npp with variation in predictor variables are displayed below.
+
 ```{r}
 plot_npp_sd(data_agg_sd$lai)
 plot_npp_sd(data_agg_sd$height)
@@ -111,11 +110,7 @@ plot_npp_sd(data_agg_sd$tmin)
 plot_npp_sd(data_agg_sd$tavg)
 ```
 
-# Plot SD/COV of average monthly ET, NPP, etc. by zone/topo/elev and climate scenario
-
-
-
-# Graph mean monthly ET, SWE, NPP, etc. by zone/topo/elev and climate scenario
+## Plot mean monthly values by zone/topo
 
 ```{r plotmonths}
 data_agg_monthly <- data %>% 
@@ -140,6 +135,8 @@ plot_monthly <- function(var) {
 }
 ```
 
+The following plots show average monthly values for each variable. This demonstrates the typical yearly trend.
+
 ```{r plotmonthly}
 plot_monthly(data_agg_monthly$npp)
 plot_monthly(data_agg_monthly$lai)
@@ -157,16 +154,16 @@ plot_monthly(data_agg_monthly$tmin)
 plot_monthly(data_agg_monthly$tavg)
 ```
 
-NPP trends match by topography. Riparian zones see more extreme values of NPP (lower in Winter/Spring, higher in Fall)
+NPP trends match by topography. Riparian zones see more extreme values of NPP (lower in Winter/Spring, higher in Fall).
 
-# Create a summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
+## Summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
 
 ```{r}
 zones <- data %>% 
   filter(clim==0) %>% 
-  select(c(year, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
+  select(c(wy, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
   ## Aggregate by year
-  group_by(year, topo, stratumID, elev, aspect, slope) %>% 
+  group_by(wy, topo, stratumID, elev, aspect, slope) %>% 
   summarize(tmin = mean(tmin),
             tavg = mean(tavg),
             tmax = mean(tmax),
@@ -175,20 +172,20 @@ zones <- data %>%
   group_by(stratumID, topo, elev, aspect, slope) %>% 
   summarize(across(everything(), list(mean))) %>% 
   rename_with(~str_remove(., "_1")) %>% 
-  select(-year) %>% 
+  select(-wy) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
                           topo == "R" ~ "Riparian")) %>% 
   dplyr::arrange(topo) %>% 
   rename("Stratum"=stratumID,
          "Topo"=topo,
-         "Elevation"=elev,
-         "Aspect"=aspect,
-         "Slope"=slope,
-         "Min Temp."=tmin,
-         "Mean Temp."=tavg,
-         "Max Temp."=tmax,
-         "Precipitation"=precip)
+         "Elevation (m)"=elev,
+         "Aspect (degrees CCW from East)"=aspect,
+         "Slope (degrees)"=slope,
+         "Min Temp.(C)"=tmin,
+         "Mean Temp.(C)"=tavg,
+         "Max Temp. (C)"=tmax,
+         "Precipitation (mm)"=precip)
 
 
 
