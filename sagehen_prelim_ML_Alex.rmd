@@ -1,0 +1,103 @@
+---
+title: "Preliminary ML Workflow"
+author: "Alex Clippinger"
+date: "1/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen=999)
+
+library(tidyverse)
+library(randomForest)
+library(caret)
+library(e1071)
+library(Boruta)
+```
+
+# Load data
+
+```{r load}
+df <- read_csv(here("data", "sageres.csv")) 
+
+df_by_wy <- df %>% 
+  group_by(wy, stratumID, clim, scen) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID)) %>% 
+  select(npp, everything())
+
+#lapply(df_by_wy, class)
+```
+
+# Feature Selection
+
+Reference: https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+
+## Redundant Feature Identification
+
+```{r RFI}
+## Calculate correlation matrix
+correlationMatrix <- cor(df_by_wy[,2:ncol(df_by_wy)])
+
+## Identify highly correlated variables by index
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+
+colnames(correlationMatrix[,highlyCorrelated])
+```
+
+## Feature Importance
+
+```{r FI}
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+
+model <- train(npp ~ ., 
+               data=df_by_wy, 
+               method="bridge", # https://topepo.github.io/caret/available-models.html
+               preProcess="scale",
+               trControl=control)
+
+importance <- varImp(model, scale=FALSE)
+plot(importance)
+```
+
+## Recursive Feature Elimination
+
+```{r RFE}
+## Define control using random forest selection method
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+
+## Run RFE algorithm
+results <- rfe(x=df_by_wy[,2:ncol(df_by_wy)], 
+               y=as.matrix(df_by_wy[,1]), 
+               sizes=c(1:(ncol(df_by_wy)-1)), # number of features that should be retained
+               metric="RMSE", # metric to select optimal model
+               rfeControl=control)
+
+## Summary of results
+print(results)
+
+## List chosen features
+predictors(results)
+
+## Plot results
+plot(results, type=c("g","o"))
+```
+
+## Boruta
+
+Reference: https://www.analyticsvidhya.com/blog/2016/03/select-important-variables-boruta-package/
+
+```{r Boruta}
+boruta.train <- Boruta(npp ~ ., data=df_by_wy, doTrace=2)
+
+print(boruta.train)
+
+plot(boruta.train, las=2, xlab="")
+
+#final.boruta <- TentativeRoughFix(boruta.train)
+
+boruta.df <- attStats(boruta.train)
+```
+
