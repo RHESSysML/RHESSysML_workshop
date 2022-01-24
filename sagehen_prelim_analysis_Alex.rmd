@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(kableExtra)
+
+library(mgcv) # GAM
 ```
 
 # Question
@@ -20,13 +22,15 @@ Our question is: **What are the main variables that impact NPP?** NPP is an indi
 # Load data
 
 ```{r}
-data <- read_csv(here("data", "sageres.csv"))
+df <- read_csv(here("data", "sageres.csv"))
 ```
 
-# Simple correlation plots with independent variables and NPP
+# Visualizations
+
+## Simple correlation plots
 
 ```{r aggdata}
-data_agg_yearly <- data %>% 
+data_agg_yearly <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -50,13 +54,6 @@ plot_npp <- function(var) {
 
 
 ```{r plotannual}
-# predictor_vars <- c("lai", "height", "plantc", "cpool", "swe", "precip", "trans", 
-#                    "evap", "sat_deficit", "rz_storage", "tmax", "tmin", "tavg")
-# 
-# for (i in response_vars) {
-#   plot_npp(stat=mean, data_agg$i)
-# }
-
 plot_npp(data_agg_yearly$lai)
 plot_npp(data_agg_yearly$height)
 plot_npp(data_agg_yearly$plantc)
@@ -72,8 +69,10 @@ plot_npp(data_agg_yearly$tmin)
 plot_npp(data_agg_yearly$tavg)
 ```
 
+Initial scatter plots indicate that precipitation, transpiration, evaporation, soil moisture saturation deficit, and root-zone soil moisture storage correlate with net primary productivity.
+
 ```{r sd}
-data_agg_sd <- data %>% 
+data_agg_sd <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -95,6 +94,8 @@ plot_npp_sd <- function(var) {
 }
 ```
 
+Initial scatter plots comparing the variation in npp with variation in predictor variables are displayed below.
+
 ```{r}
 plot_npp_sd(data_agg_sd$lai)
 plot_npp_sd(data_agg_sd$height)
@@ -111,14 +112,10 @@ plot_npp_sd(data_agg_sd$tmin)
 plot_npp_sd(data_agg_sd$tavg)
 ```
 
-# Plot SD/COV of average monthly ET, NPP, etc. by zone/topo/elev and climate scenario
-
-
-
-# Graph mean monthly ET, SWE, NPP, etc. by zone/topo/elev and climate scenario
+## Plot mean monthly values by zone/topo
 
 ```{r plotmonths}
-data_agg_monthly <- data %>% 
+data_agg_monthly <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -140,6 +137,8 @@ plot_monthly <- function(var) {
 }
 ```
 
+The following plots show average monthly values for each variable. This demonstrates the typical yearly trend.
+
 ```{r plotmonthly}
 plot_monthly(data_agg_monthly$npp)
 plot_monthly(data_agg_monthly$lai)
@@ -157,16 +156,16 @@ plot_monthly(data_agg_monthly$tmin)
 plot_monthly(data_agg_monthly$tavg)
 ```
 
-NPP trends match by topography. Riparian zones see more extreme values of NPP (lower in Winter/Spring, higher in Fall)
+NPP trends match by topography. Riparian zones see more extreme values of NPP (lower in Winter/Spring, higher in Fall).
 
-# Create a summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
+## Summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
 
 ```{r}
-zones <- data %>% 
+zones <- df %>% 
   filter(clim==0) %>% 
-  select(c(year, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
+  select(c(wy, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
   ## Aggregate by year
-  group_by(year, topo, stratumID, elev, aspect, slope) %>% 
+  group_by(wy, topo, stratumID, elev, aspect, slope) %>% 
   summarize(tmin = mean(tmin),
             tavg = mean(tavg),
             tmax = mean(tmax),
@@ -175,22 +174,20 @@ zones <- data %>%
   group_by(stratumID, topo, elev, aspect, slope) %>% 
   summarize(across(everything(), list(mean))) %>% 
   rename_with(~str_remove(., "_1")) %>% 
-  select(-year) %>% 
+  select(-wy) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
                           topo == "R" ~ "Riparian")) %>% 
   dplyr::arrange(topo) %>% 
   rename("Stratum"=stratumID,
          "Topo"=topo,
-         "Elevation"=elev,
-         "Aspect"=aspect,
-         "Slope"=slope,
-         "Min Temp."=tmin,
-         "Mean Temp."=tavg,
-         "Max Temp."=tmax,
-         "Precipitation"=precip)
-
-
+         "Elevation (m)"=elev,
+         "Aspect (degrees CCW from East)"=aspect,
+         "Slope (degrees)"=slope,
+         "Min Temp.(C)"=tmin,
+         "Mean Temp.(C)"=tavg,
+         "Max Temp. (C)"=tmax,
+         "Precipitation (mm)"=precip)
 
 zones_table <-  kable(zones,
                       digits=2,
@@ -202,3 +199,70 @@ zones_table
 ```
 
 The 6 study areas do not appear to vary significantly in yearly average precipitation, elevation, or temperature. **The 6 study areas do vary in aspect and slope**
+
+# Exploration
+
+Below, I wanted to test some of the concepts that we've learned in Lab 1 of EDS232.
+
+```{r}
+df_by_wy <- df %>% 
+  group_by(wy, stratumID, clim, scen) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID)) %>% 
+  select(npp, everything()) 
+
+# Convert factor variables
+factor_vars <- c("wy", "stratumID", "clim", "scen")
+df_by_wy[,factor_vars] <- lapply(df_by_wy[,factor_vars], factor)
+
+df_by_wy <- df_by_wy %>% 
+  as.data.table()
+```
+
+## Linear Model
+
+```{r}
+linear_model <- lm(formula= npp ~ ., data=df_by_wy)
+
+summary(linear_model)
+```
+
+For this to work properly, we would need to remove highly correlated variables, which definitely exist in this dataset.
+
+```{r}
+y_predict <- predict(linear_model, df_by_wy, type="response")
+range(y_predict)
+
+y_true <- df_by_wy$npp
+range(y_true)
+```
+The warning is a result of highly correlated predictor variables. Results in a smaller range than the true range of NPP.
+
+## Generalized Linear Model
+
+```{r}
+glm_model <- glm(npp ~ ., 
+                 family=gaussian, # ?family
+                 data=df_by_wy)
+
+summary(glm_model)
+```
+
+```{r}
+glm_predict <- predict(glm_model, df_by_wy, type="response")
+
+range(glm_predict)
+```
+
+Similar range to the linear model, still dealing with rank-deficient fit due to highly correlated predictors.
+
+## Generalized Additive Model
+
+Have to specify variables in the formula for this to run.
+
+```{r eval=FALSE}
+gam_model <- mgcv::gam(formula=npp ~ .,
+                       family=binomial, 
+                       data=df_by_wy)
+```
