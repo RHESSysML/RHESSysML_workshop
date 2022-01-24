@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(kableExtra)
+
+library(mgcv) # GAM
 ```
 
 # Question
@@ -20,7 +22,7 @@ Our question is: **What are the main variables that impact NPP?** NPP is an indi
 # Load data
 
 ```{r}
-data <- read_csv(here("data", "sageres.csv"))
+df <- read_csv(here("data", "sageres.csv"))
 ```
 
 # Visualizations
@@ -28,7 +30,7 @@ data <- read_csv(here("data", "sageres.csv"))
 ## Simple correlation plots
 
 ```{r aggdata}
-data_agg_yearly <- data %>% 
+data_agg_yearly <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -70,7 +72,7 @@ plot_npp(data_agg_yearly$tavg)
 Initial scatter plots indicate that precipitation, transpiration, evaporation, soil moisture saturation deficit, and root-zone soil moisture storage correlate with net primary productivity.
 
 ```{r sd}
-data_agg_sd <- data %>% 
+data_agg_sd <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -113,7 +115,7 @@ plot_npp_sd(data_agg_sd$tavg)
 ## Plot mean monthly values by zone/topo
 
 ```{r plotmonths}
-data_agg_monthly <- data %>% 
+data_agg_monthly <- df %>% 
   filter(clim == 0) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
@@ -159,7 +161,7 @@ NPP trends match by topography. Riparian zones see more extreme values of NPP (l
 ## Summary table of basic hydrologic properties (compare zones - elev, slope, aspect, temp, precip, wetness, etc.)
 
 ```{r}
-zones <- data %>% 
+zones <- df %>% 
   filter(clim==0) %>% 
   select(c(wy, stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
   ## Aggregate by year
@@ -187,8 +189,6 @@ zones <- data %>%
          "Max Temp. (C)"=tmax,
          "Precipitation (mm)"=precip)
 
-
-
 zones_table <-  kable(zones,
                       digits=2,
                       caption="Summary of 6 Study Areas in Sagehen Creek",
@@ -202,10 +202,28 @@ The 6 study areas do not appear to vary significantly in yearly average precipit
 
 # Exploration
 
+Below, I wanted to test some of the concepts that we've learned in Lab 1 of EDS232.
+
+```{r}
+df_by_wy <- df %>% 
+  group_by(wy, stratumID, clim, scen) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID)) %>% 
+  select(npp, everything()) 
+
+# Convert factor variables
+factor_vars <- c("wy", "stratumID", "clim", "scen")
+df_by_wy[,factor_vars] <- lapply(df_by_wy[,factor_vars], factor)
+
+df_by_wy <- df_by_wy %>% 
+  as.data.table()
+```
+
 ## Linear Model
 
 ```{r}
-linear_model <- lm(formula= npp ~ ., data=data)
+linear_model <- lm(formula= npp ~ ., data=df_by_wy)
 
 summary(linear_model)
 ```
@@ -213,10 +231,10 @@ summary(linear_model)
 For this to work properly, we would need to remove highly correlated variables, which definitely exist in this dataset.
 
 ```{r}
-y_predict <- predict(linear_model, data, type="response")
+y_predict <- predict(linear_model, df_by_wy, type="response")
 range(y_predict)
 
-y_true <- data$npp
+y_true <- df_by_wy$npp
 range(y_true)
 ```
 The warning is a result of highly correlated predictor variables. Results in a smaller range than the true range of NPP.
@@ -226,15 +244,25 @@ The warning is a result of highly correlated predictor variables. Results in a s
 ```{r}
 glm_model <- glm(npp ~ ., 
                  family=gaussian, # ?family
-                 data=data)
+                 data=df_by_wy)
 
 summary(glm_model)
 ```
 
 ```{r}
-glm_predict <- predict(glm_model, data, type="response")
+glm_predict <- predict(glm_model, df_by_wy, type="response")
 
 range(glm_predict)
 ```
 
 Similar range to the linear model, still dealing with rank-deficient fit due to highly correlated predictors.
+
+## Generalized Additive Model
+
+Have to specify variables in the formula for this to run.
+
+```{r eval=FALSE}
+gam_model <- mgcv::gam(formula=npp ~ .,
+                       family=binomial, 
+                       data=df_by_wy)
+```
