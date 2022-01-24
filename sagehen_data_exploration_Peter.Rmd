@@ -92,65 +92,69 @@ ggplot(df_wy_2, aes(x = tmax, y = water_efficiency)) +
 Comparing node purity increase among variables explaining npp
 
 ```{r}
-rfout <- randomForest(formula = npp ~ tmax  + tmin + aspect + slope + clim + swe + scen + elev + precip,     
-                 data = df_by_wy)
+rf <- randomForest(formula = npp ~ tmax  + tmin + aspect + slope + clim + swe + scen + elev + precip,     
+                 data = df_by_wy, localImp = TRUE)
 
-print(rfout)
-
-# type = 2 arg gives output: mean decrease in node impurity (as opposed to type = 1 which gives mean decrease in accuracy)
-purity <- rfout$importance %>%
+rf_imp <- rf$importance %>%
   as.data.frame() %>%
-  rownames_to_column("variable") %>% 
-  rename("variable" = 1,"inc_node_purity" = 2) %>% 
-  as_tibble()
-
-purity <- purity[order(purity$inc_node_purity, decreasing = TRUE), ]
-
-purity
+  rownames_to_column("variable")
 ```
 
 *IncNodePurity* (increase in node purity) the total decrease in node impurities, measured by the Gini Index
 
 
 ```{r}
-rfout_clim0 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
-                 data = df_wy_0)
+rf_clim0 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
+                 data = df_wy_0, localImp = TRUE)
 
-print(rfout_clim0)
-
-purity_clim0 <- rfout_clim0$importance %>%
+rf_imp_clim0 <- rf_clim0$importance %>%
   as.data.frame() %>%
-  rownames_to_column("variable") %>% 
-  rename("variable" = 1,"inc_node_purity" = 2) %>% 
-  as_tibble()
-
-purity_clim0 <- purity_clim0[order(purity_clim0$inc_node_purity, decreasing = TRUE), ]
-
-purity_clim0
+  rownames_to_column("variable")
 ```
 
 
 
 ```{r}
-rfout_clim2 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
-                 data = df_wy_2)
+rf_clim2 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
+                 data = df_wy_2, localImp = TRUE)
 
-print(rfout_clim2)
-
-purity_clim2 <- rfout_clim2$importance %>%
+rf_imp_clim2 <- rf_clim2$importance %>%
   as.data.frame() %>%
-  rownames_to_column("variable") %>% 
-  rename("variable" = 1,"inc_node_purity" = 2) %>% 
-  as_tibble()
-
-purity_clim2 <- purity_clim2[order(purity_clim2$inc_node_purity, decreasing = TRUE), ]
-
-purity_clim2
+  rownames_to_column("variable")
 ```
+
+## `randomForestExplainer`
+
+The function below spits out a knitted html of its own that contains a whole slew of summary visualizations describing the `randomForest` output
 
 ```{r}
-randomForestExplainer::explain_forest(randomForest::importance(rfout, type = 2))
+#randomForestExplainer::explain_forest(rf_clim0)
 ```
+
+
+```{r}
+mindep <- min_depth_distribution(rf)
+```
+
+
+```{r}
+mindep_avg <- mindep %>% 
+  group_by(variable) %>% 
+  summarize(mean_min_depth = mean(minimal_depth))
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
 
 
 
