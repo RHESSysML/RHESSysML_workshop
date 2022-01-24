@@ -10,7 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 options(scipen=999)
 
+# Standard Libraries
 library(tidyverse)
+library(here)
+library(kableExtra)
+library(data.table)
+
+# Machine Learning Libraries
 library(randomForest)
 library(caret)
 library(e1071)
@@ -25,13 +31,17 @@ df <- read_csv(here("data", "sageres.csv"))
 df_by_wy <- df %>% 
   group_by(wy, stratumID, clim, scen) %>% 
   summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
   select(-c(day, month, year, basinID, hillID, zoneID, patchID)) %>% 
-  select(npp, everything())
+  select(npp, everything()) %>% 
+  as.data.table()
 
-#lapply(df_by_wy, class)
+colnames(df_by_wy) %>% kable()
 ```
 
 # Feature Selection
+
+The first step in the workflow is feature selection. Some variables in the output will be highly/perfectly correlated. Therefore, we need to develop a method to remove unnecessary features systematically.
 
 Reference: https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
 
@@ -47,31 +57,63 @@ highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
 colnames(correlationMatrix[,highlyCorrelated])
 ```
 
+This process identifies features that are highly correlated by creating a correlation matrix.
+
 ## Feature Importance
 
+I need to research the method and model choices here. In control, we have to pick a resampling method (?trainControl). Currently, I used the method included in the tutorial. `repeatedcv` appears to be cross-fold validation, which we do 10-fold and repeat 3 times. The tutorial uses a Classification model whereas we need to perform a Regression. This more impacts the choice of model in the **train** function, for which I made an uneducated choice of a Regression model. 
+
 ```{r FI}
-control <- trainControl(method="repeatedcv", number=10, repeats=3)
+## control the computational nuances of the train function
+control <- trainControl(method="repeatedcv", number=10, repeats=3) # 10-fold cross validation repeated 3 times
 
 model <- train(npp ~ ., 
                data=df_by_wy, 
-               method="bridge", # https://topepo.github.io/caret/available-models.html
+               method="ridge", # https://topepo.github.io/caret/available-models.html
                preProcess="scale",
                trControl=control)
 
+model
+```
+
+### Side Note: Weight Decay
+
+In the above output, lambda is a "tuning parameter". I need to learn more about this. This blog seems helpful: https://csantill.github.io/RTuningModelParameters/
+
+```{r}
+modelLookup("ridge")
+```
+
+This looks like a helpful article on Weight Decay: https://towardsdatascience.com/this-thing-called-weight-decay-a7cd4bcfccab
+
+Essentially it seems like a parameter to prevent over-fitting of the model. The sum of squares are multiplied by the weight decay. This apparently penalizes complexity but prevent loss function from growing to the point where the model would set all parameters to 0.
+
+
+For `varImp` to work below, I had to convert the df_by_wy dataframe into a data.table. I am not sure why this was necessary.
+
+```{r}
 importance <- varImp(model, scale=FALSE)
 plot(importance)
 ```
 
+The plot above indicates the most important predictors of NPP in the model. However, I do not think that highly correlated predictors have been considered in the code thus far. Using only code above we could probably remove selected features prior to the `train` function using the results of the correlation matrix.
+
 ## Recursive Feature Elimination
+
+Alternatively, we could use an automatic feature selection method. 
+
+Here, I am trying to run the RFE function. However, it currently runs for longer than my patience. It appears this function has an option for "explicit parallelism" - where different resamples (10-fold cross validation groups) are split up and run on multiple machines or processors (see https://cran.r-project.org/web/packages/caret/caret.pdf page 135). I have not yet tried this on Taylor, it is entirely possible that my machine is not able to process this function. However, is that something that we would want to include in a reproducible workflow - the need to use any sort of computing power above normal expectations?
 
 ```{r RFE}
 ## Define control using random forest selection method
-control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+control <- rfeControl(functions=rfFuncs, # Ancilliary functions for backward selection (?rfFuncs)
+                      method="cv", 
+                      number=10)
 
-## Run RFE algorithm
+## Run RFE algorithm - simple backwards selection (recursive feature elimination)
 results <- rfe(x=df_by_wy[,2:ncol(df_by_wy)], 
                y=as.matrix(df_by_wy[,1]), 
-               sizes=c(1:(ncol(df_by_wy)-1)), # number of features that should be retained
+               sizes=c(1:(ncol(df_by_wy)-1)), # numeric vector of integers corresponding to number of features to retain
                metric="RMSE", # metric to select optimal model
                rfeControl=control)
 
@@ -89,6 +131,18 @@ plot(results, type=c("g","o"))
 
 Reference: https://www.analyticsvidhya.com/blog/2016/03/select-important-variables-boruta-package/
 
+Boruta is another feature selection algorithm. As per the reference above, it is a "wrapper" algorithm around Random Forest. I need to understand better the advantages/disadvantages of using Boruta vs. "Traditional" feature selection algorithms.
+
+```{r Boruta_PreProcess}
+# Convert factor variables
+factor_vars <- c("wy", "stratumID", "clim", "scen")
+df_by_wy[,factor_vars] <- lapply(df_by_wy[,factor_vars], factor)
+
+lapply(df_by_wy, class)
+```
+
+Before running Boruta, we convert the factor variables from numeric to factor. This could possibly be done before running all previous code, however I need to better understand the impact of that change.
+
 ```{r Boruta}
 boruta.train <- Boruta(npp ~ ., data=df_by_wy, doTrace=2)
 
@@ -101,3 +155,4 @@ plot(boruta.train, las=2, xlab="")
 boruta.df <- attStats(boruta.train)
 ```
 
+The Boruta algorithm deems all variables important and removes none. The outcome provides similar importance results as in the Feature Importance section, however there are some glaring differences - namely the position of `wy`. I am not sure what to think of these results.

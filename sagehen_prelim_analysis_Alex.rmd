@@ -199,3 +199,42 @@ zones_table
 ```
 
 The 6 study areas do not appear to vary significantly in yearly average precipitation, elevation, or temperature. **The 6 study areas do vary in aspect and slope**
+
+# Exploration
+
+## Linear Model
+
+```{r}
+linear_model <- lm(formula= npp ~ ., data=data)
+
+summary(linear_model)
+```
+
+For this to work properly, we would need to remove highly correlated variables, which definitely exist in this dataset.
+
+```{r}
+y_predict <- predict(linear_model, data, type="response")
+range(y_predict)
+
+y_true <- data$npp
+range(y_true)
+```
+The warning is a result of highly correlated predictor variables. Results in a smaller range than the true range of NPP.
+
+## Generalized Linear Model
+
+```{r}
+glm_model <- glm(npp ~ ., 
+                 family=gaussian, # ?family
+                 data=data)
+
+summary(glm_model)
+```
+
+```{r}
+glm_predict <- predict(glm_model, data, type="response")
+
+range(glm_predict)
+```
+
+Similar range to the linear model, still dealing with rank-deficient fit due to highly correlated predictors.
