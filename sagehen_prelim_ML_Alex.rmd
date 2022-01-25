@@ -32,12 +32,20 @@ df_by_wy <- df %>%
   group_by(wy, stratumID, clim, scen) %>% 
   summarise_if(is.numeric, mean) %>% 
   ungroup() %>% 
-  select(-c(day, month, year, basinID, hillID, zoneID, patchID)) %>% 
-  select(npp, everything()) %>% 
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy)) %>% 
+  select(npp, everything())
+
+# Convert factor variables
+factor_vars <- c("stratumID", "clim", "scen")
+df_by_wy[,factor_vars] <- lapply(df_by_wy[,factor_vars], factor)
+
+df_by_wy <- df_by_wy %>% 
   as.data.table()
 
-colnames(df_by_wy) %>% kable()
+lapply(df_by_wy, class)
 ```
+
+Before anayzing, we convert the factor variables from numeric to factor.
 
 # Feature Selection
 
@@ -49,7 +57,7 @@ Reference: https://machinelearningmastery.com/feature-selection-with-the-caret-r
 
 ```{r RFI}
 ## Calculate correlation matrix
-correlationMatrix <- cor(df_by_wy[,2:ncol(df_by_wy)])
+correlationMatrix <- cor(df_by_wy[,2:ncol(df_by_wy)] %>% select(where(is.numeric)))
 
 ## Identify highly correlated variables by index
 highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
@@ -113,7 +121,7 @@ control <- rfeControl(functions=rfFuncs, # Ancilliary functions for backward sel
 ## Run RFE algorithm - simple backwards selection (recursive feature elimination)
 results <- rfe(x=df_by_wy[,2:ncol(df_by_wy)], 
                y=as.matrix(df_by_wy[,1]), 
-               sizes=c(1:(ncol(df_by_wy)-1)), # numeric vector of integers corresponding to number of features to retain
+               sizes=c(1:5, 10, 15, (ncol(df_by_wy)-1)), # numeric vector of integers corresponding to number of features to retain
                metric="RMSE", # metric to select optimal model
                rfeControl=control)
 
@@ -132,16 +140,6 @@ plot(results, type=c("g","o"))
 Reference: https://www.analyticsvidhya.com/blog/2016/03/select-important-variables-boruta-package/
 
 Boruta is another feature selection algorithm. As per the reference above, it is a "wrapper" algorithm around Random Forest. I need to understand better the advantages/disadvantages of using Boruta vs. "Traditional" feature selection algorithms.
-
-```{r Boruta_PreProcess}
-# Convert factor variables
-factor_vars <- c("wy", "stratumID", "clim", "scen")
-df_by_wy[,factor_vars] <- lapply(df_by_wy[,factor_vars], factor)
-
-lapply(df_by_wy, class)
-```
-
-Before running Boruta, we convert the factor variables from numeric to factor. This could possibly be done before running all previous code, however I need to better understand the impact of that change.
 
 ```{r Boruta}
 boruta.train <- Boruta(npp ~ ., data=df_by_wy, doTrace=2)
