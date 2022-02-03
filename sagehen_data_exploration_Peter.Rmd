@@ -15,6 +15,7 @@ library(randomForestExplainer)
 library(caret)
 library(permimp)
 library(party)
+library(patchwork)
 ```
 
 ```{r}
@@ -69,21 +70,35 @@ rf_imp <- rf$importance %>%
 
 
 ```{r}
+rf_clim0 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
+                 data = df_wy_0, localImp = TRUE, keep.inbag = TRUE, keep.forest = TRUE)
+```
+
+
+```{r}
 rf_clim0_perm <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
                  data = df_wy_0, importance = TRUE, keep.inbag = TRUE, keep.forest = TRUE)
 
-rf_imp_clim0 <- rf_clim0$importance %>%
+rf_imp_clim0 <- rf_clim0_perm$importance %>%
   as.data.frame() %>%
   rownames_to_column("variable")
 ```
-
 
 
 ```{r}
 rf_clim2 <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
                  data = df_wy_2, localImp = TRUE)
 
-rf_imp_clim2 <- rf_clim2$importance %>%
+# rf_imp_clim2 <- rf_clim2$importance %>%
+#   as.data.frame() %>%
+#   rownames_to_column("variable")
+```
+
+```{r}
+rf_clim2_perm <- randomForest(formula = npp ~ tmax + tmin + aspect + slope + swe + scen + elev + precip,     
+                 data = df_wy_2, importance = TRUE, keep.inbag = TRUE, keep.forest = TRUE)
+
+rf_imp_clim2 <- rf_clim2_perm$importance %>%
   as.data.frame() %>%
   rownames_to_column("variable")
 ```
@@ -93,8 +108,8 @@ rf_imp_clim2 <- rf_clim2$importance %>%
 The function below spits out a knitted html of its own that contains a whole slew of summary visualizations describing the `randomForest` output
 
 ```{r}
-#randomForestExplainer::explain_forest(rf_clim0)
-#randomForestExplainer::explain_forest(rf_clim0_perm)
+#randomForestExplainer::explain_forest(rf_clim0) # impurity based importance
+#randomForestExplainer::explain_forest(rf_clim0_perm) # permutation based importance
 
 ```
 
@@ -103,17 +118,25 @@ The function below spits out a knitted html of its own that contains a whole sle
 This is the measure of importance of that they used in Burke. I haven't read this anywhere, but I'm pretty certain this measure would be affected by the bias of variable range that impacts measuring decrease in impurity. 
 
 ```{r}
-mindep <- min_depth_distribution(rf)
+# mindep <- min_depth_distribution(rf)
 ```
 
 
 ```{r}
-mindep_avg <- mindep %>% 
-  group_by(variable) %>% 
-  summarize(mean_min_depth = mean(minimal_depth))
+# mindep_avg <- mindep %>% 
+#   group_by(variable) %>% 
+#   summarize(mean_min_depth = mean(minimal_depth))
 ```
 
-## Permimp
+## `Permimp()`
+
+Method created to address bias issues in RF variable importance beyond standard permutation importance.
+
+[This paper](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2) explains the need for a better method and the mechanism used in the function.
+
+**Prompts you to assure the data hasn't been changed since creation of the RF** - Thought it was just taking a long time to run but it was waiting on me..
+
+### Climate 0
 
 ```{r}
 permimp_clim0 <- permimp(rf_clim0_perm)
@@ -121,19 +144,54 @@ permimp_clim0 <- permimp(rf_clim0_perm)
 
 
 ```{r}
-permimp_clim0_vlaues <- permimp_clim0$values %>%
+permimp_clim0_values <- permimp_clim0$values %>%
   data.frame() %>% 
   rownames_to_column("variable")
 ```
 
+### Climate 2
+
+```{r}
+permimp_clim2 <- permimp(rf_clim2_perm)
+```
+
+```{r}
+permimp_clim2_values <- permimp_clim2$values %>%
+  data.frame() %>% 
+  rownames_to_column("variable")
+```
+
+```{r}
+# reordering variables from highest to lowest importance for plotting
+permimp_plot_0 <- ggplot(permimp_clim0_values, aes(x = reorder(variable, -.), y = .)) +
+  geom_col() +
+  labs(title = "permimp importance clim 0", x = "variable", y = "importance")
+```
+
+```{r}
+permimp_plot_2 <- ggplot(permimp_clim2_values, aes(x = reorder(variable, -.), y = .)) +
+  geom_col() +
+  labs(title = "permimp importance clim 2", x = "variable", y = "importance")
+```
+
+```{r}
+imp_plot_0 <- ggplot(rf_imp_clim0, aes(x = reorder(variable, -IncNodePurity), y = IncNodePurity)) +
+  geom_col() +
+  labs(title = "impurity importance clim 0", x = "variable", y = "importance")
+```
+
+```{r}
+imp_plot_2 <- ggplot(rf_imp_clim2, aes(x = reorder(variable, -IncNodePurity), y = IncNodePurity)) +
+  geom_col() +
+  labs(title = "impurity importance clim 2", x = "variable", y = "importance")
+```
+
+```{r}
+(permimp_plot_0 + permimp_plot_2) / (imp_plot_0 + imp_plot_2)
+```
 
 
+```{r}
+plot(permimp_clim0)
+```
 
-
-
-
-
-
-
-
- 
