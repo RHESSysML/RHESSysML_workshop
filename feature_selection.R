@@ -7,6 +7,8 @@ options(scipen=999)
 library(tidyverse)
 library(here)
 library(patchwork)
+library(psych)
+library(kableExtra)
 
 ## Machine Learning packages
 library(caret)
@@ -49,6 +51,16 @@ df_wy_0 <- df_wy %>%
 ## Create data frame with only climate scenario 2
 df_wy_2 <- df_wy %>% 
   filter(clim==2)
+
+# Dataset description -----------------------------------------------------
+
+summarize_data <- function(df) {
+  describe(df_wy_0) %>% 
+    select(vars, n, mean, sd, min, max, range, skew) %>% 
+    kable()
+}
+
+summarize_data(df_wy_0)
 
 # Identify correlated variables -------------------------------------------
 
