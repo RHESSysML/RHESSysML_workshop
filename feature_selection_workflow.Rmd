@@ -67,7 +67,9 @@ factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
 response_var <- "npp"
 ```
 
-Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two 
+Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames
+
+TO DO: ADD DERIVED VARIABLES (SWE AND MONTHLY TEMPS)
 
 ```{r prepare_data}
 ## Convert categorical variables to factors
@@ -165,6 +167,8 @@ kable(topos,
 
 Highly correlated predictor variables are not as much a concern in machine learning when creating a predictive model (ADD SOURCE). However, for this process of assessing relative predictor variable importance, multicollinear variables have biased importance (ADD SOURCE). Therefore, these need to be handled prior to assessing feature importance.
 
+TO DO: ADD SOURCES FOR THIS SECTION
+
 ## Identify and Remove Correlated Variables
 
 First, we create data frames containing only the predictor variables to assist with the next steps.
@@ -215,6 +219,8 @@ remove_multicollinearity <- function(vif.threshold=5, cor.threshold=0.75, predic
 
 Thresholds for VIF and correlation can be set using the function below. For information on how to select appropriate thresholds, see here (ADD SOURCE)
 
+TO DO: ADD SOURCE FOR SELECTING THRESHOLDS
+
 ```{r remove_multicollinearity, warning=FALSE}
 ## Create list of selected variables
 wy0_select_variables <- remove_multicollinearity(vif.threshold=5, cor.threshold=0.75, predictors.df=allpredictors.df_wy0)
@@ -236,21 +242,27 @@ TO DO: CREATE SUMMARY AND VISUALIZATIONS OF VARIABLES REMOVED. use warning messa
 
 Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest method because ADD DESCRIPTION AND SOURCE HERE. Additionally, we use this package/function because ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
 
+TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
+
+TO DO: ADD MORE RANDOM FOREST MODELS AND IMPORTANCE METRICS
+
 ```{r get_random_forests}
 ## Random Forest package with replace=FALSE
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
-                       replace=FALSE,
+                       replace=TRUE,
                        importance=TRUE)
 
 ## Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
-                       replace=FALSE,
+                       replace=TRUE,
                        importance=TRUE)
 ```
 
 Lastly, we measure variable importance using ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
+
+TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
 
 ```{r get_importance, warning=FALSE}
 imp_wy0 <- permimp(rf_wy0, 
@@ -261,6 +273,8 @@ imp_wy2 <- permimp(rf_wy2,
                    #conditional=TRUE,
                    do_check=FALSE, progressBar=FALSE)
 ```
+
+TO DO: ADD CROSS VALIDATION (10-Fold)
 
 # Visualize Results
 
@@ -312,3 +326,8 @@ wy0_plot
 wy2_plot
 ```
 
+TO DO: INCLUDE MORE VISUALIZATIONS, INCLUDING CV RESULTS, PLOTS OF IMPORTANT VARIABLE RELATIONSHIPS, ETC.
+
+TO DO: INCLUDE VISUALIZATIONS COMPARING RF MODELS, DIFFERENT IMPORTANCE MEASURES
+
+OVERALL TO DO: TEST, CHECK, AND CORRECT ALL INCORRECT ASSUMPTIONS, CHOICES, ETC. THAT LEAD TO INCORRECT RESULTS OR UNDESIRABLE WORKFLOW
