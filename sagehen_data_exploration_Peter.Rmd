@@ -195,3 +195,4 @@ imp_plot_2 <- ggplot(rf_imp_clim2, aes(x = reorder(variable, -IncNodePurity), y 
 plot(permimp_clim0)
 ```
 
+
