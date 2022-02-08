@@ -69,7 +69,7 @@ response_var <- "npp"
 
 Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames
 
-TO DO: ADD DERIVED VARIABLES (SWE AND MONTHLY TEMPS)
+TO DO: ADD DERIVED VARIABLES (SWE AND MONTHLY TEMPS) **DONE (maybe?)**
 
 ```{r prepare_data}
 ## Convert categorical variables to factors
@@ -80,6 +80,9 @@ df_wy <- df %>%
   mutate(aspect=aspect*(180/pi),
          slope=slope*(180/pi)) %>% 
   group_by(across(all_of(group_cols))) %>% 
+  mutate(jun_tavg = mean(tavg[month == 6]),
+         jul_tavg = mean(tavg[month == 7]),
+         aug_tavg = mean(tavg[month == 8])) %>% 
   mutate(peak_swe=max(swe)) %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
@@ -253,13 +256,17 @@ TO DO: ADD MORE RANDOM FOREST MODELS AND IMPORTANCE METRICS
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
                        replace=TRUE,
-                       importance=TRUE)
+                       importance=TRUE,
+                       keep.forest=TRUE,
+                       keep.inbag=TRUE)
 
 ## Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
                        replace=TRUE,
-                       importance=TRUE)
+                       importance=TRUE,
+                       keep.forest=TRUE,
+                       keep.inbag=TRUE)
 ```
 
 Lastly, we measure variable importance using ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
