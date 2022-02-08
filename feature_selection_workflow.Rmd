@@ -80,6 +80,8 @@ df_wy <- df %>%
   mutate(aspect=aspect*(180/pi),
          slope=slope*(180/pi)) %>% 
   group_by(across(all_of(group_cols))) %>% 
+  mutate(peak_swe=max(swe)) %>%
+  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
   ungroup() %>% 
   ## Reorder response variables first
