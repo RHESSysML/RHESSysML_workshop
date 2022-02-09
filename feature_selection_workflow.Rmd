@@ -195,6 +195,8 @@ factorpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(whe
 
 Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity ([Source](## Reference: https://gist.github.com/BlasBenito/768a45951a3d0c5ba355f52be94b05de)). In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their **relative** importance should be accurate.
 
+**Do we want to do this preliminary imp process for clim 2 as well?**
+
 ```{r create_correlation_function}
 ## First climate scenario
 
