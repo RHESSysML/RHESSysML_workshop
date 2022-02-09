@@ -243,6 +243,45 @@ df_wy2_reduced <- df_wy2 %>%
 
 TO DO: CREATE SUMMARY AND VISUALIZATIONS OF VARIABLES REMOVED. use warning messages for guidance.
 
+**Added plots of preliminary importance and VIF showing selected and removed variables and summary table containing all that info. Maybe we could include a pairs plot too to show correlation, or include max correlation plot / summary.**
+
+```{r}
+# creating df with preliminary variable importance (and rank) and whether each was selected or removed
+removed_importance0 <- imp$variable.importance %>% 
+  data.frame() %>% 
+  rownames_to_column("variable") %>%
+  rename("importance" = ".") %>% 
+  mutate("importance_rank" = rank(-importance)) %>% 
+  mutate(selected = case_when(variable %in% wy0_select_variables ~ "selected",
+                              !variable %in% wy0_select_variables ~ "removed")) %>% 
+  relocate("selected", .after = "variable")
+
+# creating df of VIFs
+removed_vif0 <- vif(allpredictors.df_wy0)
+
+# joining dfs to create summary table of removed and selected variables
+removed_summary0 <- removed_importance0 %>% 
+  left_join(removed_vif0, by = "variable")
+
+removed_imp0_plot <- ggplot(removed_summary0, aes(x = importance, y = reorder(variable, importance), fill = selected)) +
+  geom_col() +
+  labs(x = "Preliminary Importance", y = "Variable")
+
+removed_vif0_plot <- ggplot(removed_summary0, aes(x = vif, y = reorder(variable, vif), fill = selected)) +
+  geom_col() +
+  labs(x = "Variable Inflation Factor", y = "Variable")
+
+removed_summary0 %>%
+  select(-importance) %>% 
+  kable(caption="Selected and removed variables",
+                            format.args=list()) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+removed_imp0_plot
+removed_vif0_plot
+```
+
+
 # Feature Importance
 
 Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest method because ADD DESCRIPTION AND SOURCE HERE. Additionally, we use this package/function because ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
