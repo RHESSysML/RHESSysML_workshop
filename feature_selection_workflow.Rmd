@@ -325,6 +325,7 @@ imp_wy2 <- permimp(rf_wy2,
 ```
 
 TO DO: ADD CROSS VALIDATION (10-Fold)
+(https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6049094/)
 
 # Visualize Results
 
