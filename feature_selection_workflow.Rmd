@@ -82,7 +82,16 @@ df_wy <- df %>%
   group_by(across(all_of(group_cols))) %>% 
   mutate(jun_tavg = mean(tavg[month == 6]),
          jul_tavg = mean(tavg[month == 7]),
-         aug_tavg = mean(tavg[month == 8])) %>% 
+         aug_tavg = mean(tavg[month == 8]),
+         sep_tavg = mean(tavg[month == 9]),
+         oct_tavg = mean(tavg[month == 10]),
+         nov_tavg = mean(tavg[month == 11]),
+         dec_tavg = mean(tavg[month == 12]),
+         jan_tavg = mean(tavg[month == 1]),
+         feb_tavg = mean(tavg[month == 2]),
+         mar_tavg = mean(tavg[month == 3]),
+         apr_tavg = mean(tavg[month == 4]),
+         may_tavg = mean(tavg[month == 5]),) %>% 
   mutate(peak_swe=max(swe)) %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
