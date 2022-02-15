@@ -1,0 +1,142 @@
+---
+title: "Gradient Boosting"
+author: "Shale"
+date: "2/15/2022"
+output: html_document
+---
+
+**Currently just taking sections of code from the feature selection .Rmd and trying the same stuff with Gradient Boosting to try and identify differences**
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## Standard packages
+library(tidyverse)
+library(here)
+library(patchwork)
+library(psych)
+library(kableExtra)
+
+## Machine Learning packages
+library(caret)
+library(xgboost)
+```
+
+# Data Preparation
+
+## Load Data
+
+```{r load_data, message=FALSE}
+df <- read_csv(here("data", "sageres.csv")) 
+```
+
+The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable.
+
+```{r user_inputs}
+## USER INPUTS
+group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
+factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
+response_var <- "npp"
+```
+
+```{r prepare_data}
+## Convert categorical variables to factors
+df[,factor_vars] <- lapply(df[,factor_vars], factor)
+
+df_wy <- df %>% 
+  ## Change aspect and splope from radians to degrees
+  mutate(aspect=aspect*(180/pi),
+         slope=slope*(180/pi)) %>% 
+  group_by(across(all_of(group_cols))) %>% 
+  mutate(jun_tavg = mean(tavg[month == 6]),
+         jul_tavg = mean(tavg[month == 7]),
+         aug_tavg = mean(tavg[month == 8]),
+         sep_tavg = mean(tavg[month == 9]),
+         oct_tavg = mean(tavg[month == 10]),
+         nov_tavg = mean(tavg[month == 11]),
+         dec_tavg = mean(tavg[month == 12]),
+         jan_tavg = mean(tavg[month == 1]),
+         feb_tavg = mean(tavg[month == 2]),
+         mar_tavg = mean(tavg[month == 3]),
+         apr_tavg = mean(tavg[month == 4]),
+         may_tavg = mean(tavg[month == 5]),) %>% 
+  mutate(peak_swe=max(swe)) %>%
+  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+  ## Reorder response variables first
+  select(!!response_var, everything()) %>% 
+  ## Remove unwanted variables (manually?)
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy))
+
+## Create data frame with only climate scenario 0
+df_wy0 <- df_wy %>% 
+  filter(clim==0) %>% 
+  select(-clim)
+
+## Create data frame with only climate scenario 2
+df_wy2 <- df_wy %>% 
+  filter(clim==2) %>% 
+  select(-clim)
+```
+
+The `xgboost` package requires a numeric matrix as input, so factor variables (`topo`, `scen`, `stratumID`) need to be converted to numeric:
+
+```{r matrix_setup}
+npp_train0 <- df_wy0$npp
+npp_train2 <- df_wy2$npp
+
+## Convert factors to numeric for first climate scenario
+xgb_matrix_cl0 <- df_wy0 %>% 
+  mutate(stratumID = as.numeric(as.character(stratumID)),
+         scen = as.numeric(as.character(scen)),
+         topo = as.numeric(topo)) %>% 
+  as.matrix() %>% 
+  xgb.DMatrix(label = npp_train0)
+
+## Convert factors to numeric for second climate scenario
+xgb_matrix_cl2 <- df_wy2 %>% 
+  mutate(stratumID = as.numeric(as.character(stratumID)),
+         scen = as.numeric(as.character(scen)),
+         topo = as.numeric(topo)) %>% 
+  as.matrix() %>% 
+  xgb.DMatrix(label = npp_train2)
+                                    
+```
+
+## Gradient Boosting Model
+
+### Specify hyperparameters
+
+Detailed description of parameters:
+https://xgboost.readthedocs.io/en/stable/parameter.html
+
+Parameter tuning guidelines:
+https://xgboost.readthedocs.io/en/latest/tutorials/param_tuning.html
+**This document begins with the sentence: "Parameter tuning is a dark art in machine learning."** 
+In Python: https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
+From Kaggle: https://www.kaggle.com/prashant111/a-guide-on-xgboost-hyperparameters-tuning
+
+```{r}
+xgb_params <- list(
+  booster = "gbtree",
+  eta = 0.03,
+  max_depth = 10,
+  gamma = 2,
+  subsample = 0.8,
+  colsample_bytree = 1,
+  objective = "reg:squarederror",
+  eval_metric = "rmse"
+)
+```
+
+```{r}
+xgb_model <- xgb.train(
+  params = xgb_params,
+  data = xgb_matrix_cl2,
+  nrounds = 5000,
+  verbose = 1
+)
+xgb_model
+```
+
