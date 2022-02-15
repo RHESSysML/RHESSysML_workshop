@@ -1,0 +1,159 @@
+---
+title: "Neural Nets"
+author: "Peter Menzies"
+date: "2/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(neuralnet)
+library(here)
+```
+
+```{r load_data, message=FALSE}
+df <- read_csv(here("data", "sageres.csv")) 
+```
+
+```{r user_inputs}
+## USER INPUTS
+group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
+factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
+response_var <- "npp"
+```
+
+```{r}
+## Convert categorical variables to factors
+# df[,factor_vars] <- lapply(df[,factor_vars], factor)
+
+df_wy <- df %>% 
+  ## Change aspect and splope from radians to degrees
+  mutate(aspect=aspect*(180/pi),
+         slope=slope*(180/pi)) %>% 
+  group_by(across(all_of(group_cols))) %>% 
+  mutate(jun_tavg = mean(tavg[month == 6]),
+         jul_tavg = mean(tavg[month == 7]),
+         aug_tavg = mean(tavg[month == 8]),
+         sep_tavg = mean(tavg[month == 9]),
+         oct_tavg = mean(tavg[month == 10]),
+         nov_tavg = mean(tavg[month == 11]),
+         dec_tavg = mean(tavg[month == 12]),
+         jan_tavg = mean(tavg[month == 1]),
+         feb_tavg = mean(tavg[month == 2]),
+         mar_tavg = mean(tavg[month == 3]),
+         apr_tavg = mean(tavg[month == 4]),
+         may_tavg = mean(tavg[month == 5]),) %>% 
+  mutate(peak_swe=max(swe)) %>%
+  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+  ## Reorder response variables first
+  select(!!response_var, everything()) %>% 
+  ## Remove unwanted variables (manually?)
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, stratumID, topo, wy))
+
+## Create data frame with only climate scenario 0
+df_wy0 <- df_wy %>% 
+  filter(clim==0) %>% 
+  select(-clim)
+
+## Create data frame with only climate scenario 2
+df_wy2 <- df_wy %>% 
+  filter(clim==2) %>% 
+  select(-clim)
+```
+
+## Normalize (scale) and split data
+
+```{r}
+maxs <- apply(df_wy0, 2, max) 
+mins <- apply(df_wy0, 2, min)
+scaled <- as.data.frame(scale(df_wy0, center = mins, 
+                              scale = maxs - mins))
+  
+# Split the data into training and testing set
+index <- sample(1:nrow(df_wy0), round(0.75 * nrow(df_wy0)))
+train_ <- scaled[index,]
+test_ <- scaled[-index,]
+```
+
+## Build neural net
+
+```{r}
+# Build Neural Network
+nn <- neuralnet(npp ~ ., 
+                data = train_,
+                hidden = c(21, 14, 9), 
+                linear.output = FALSE)
+  
+# Predict on test data
+pr.nn <- predict(nn, test_[,2:32])
+  
+# "unscaling" values
+pr.nn_ <- pr.nn * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)
+
+test.r <- (test_$npp) * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)
+
+# calculate mean squared error
+mse.nn <- sum((test.r - pr.nn_)^2) / nrow(test_)
+  
+# Plot the neural network
+plot(nn)
+```
+
+## Visualizing model accuracy
+
+
+```{r}
+# Plot regression line
+plot(test_$npp, pr.nn_, col = "red", 
+     main = 'Real vs Predicted')
+```
+
+## Tweaking params
+
+```{r}
+# Build Neural Network
+nn2 <- neuralnet(npp ~ ., 
+                data = train_,
+                hidden = c(20, 17, 8), 
+                linear.output = FALSE)
+  
+# Predict on test data
+pr.nn2 <- predict(nn2, test_[,2:32])
+  
+# "unscaling" values
+pr.nn2_ <- pr.nn2 * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)
+
+test.r <- (test_$npp) * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)
+
+# calculate mean squared error
+mse.nn2 <- sum((test.r - pr.nn2_)^2) / nrow(test_)
+```
+
+## Cross-validation
+
+```{r}
+k <- 10
+cv.error <- vector(mode = "numeric", length = k)
+
+for(i in 1:k){
+    index <- sample(1:nrow(df_wy0), round(0.9 * nrow(df_wy0)))
+    train.cv <- scaled[index,]
+    test.cv <- scaled[-index,]
+    nn <- neuralnet(npp ~ ., data = train.cv, hidden=c(20, 17, 8), linear.output = FALSE)   
+    pr.nn <- predict(nn, test.cv)
+    pr.nn <- pr.nn * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)   
+    test.cv.r <- (test.cv$npp) * (max(df_wy0$npp) - min(df_wy0$npp)) + min(df_wy0$npp)   
+    cv.error[i] <- sum((test.cv.r - pr.nn) ^ 2) / nrow(test.cv)    
+    print(i)
+}
+```
+
+```{r}
+mean(cv.error)
+```
+
+
