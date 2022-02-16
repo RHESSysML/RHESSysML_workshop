@@ -49,10 +49,13 @@ df_wy <- df %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
   ungroup() %>% 
+  mutate(case_when(topo == "R" ~ 0,
+                   topo == "M" ~ 1,
+                   topo == "U" ~ 2)) %>% 
   ## Reorder response variables first
   select(!!response_var, everything()) %>% 
   ## Remove unwanted variables (manually?)
-  select(-c(day, month, year, basinID, hillID, zoneID, patchID, stratumID, topo, wy))
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, stratumID, wy))
 
 ## Create data frame with only climate scenario 0
 df_wy0 <- df_wy %>% 
