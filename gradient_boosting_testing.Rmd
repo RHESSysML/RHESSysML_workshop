@@ -167,9 +167,6 @@ xgb_preds
 ```{r}
 xgb_imp <- xgb.importance(model = xgb_model)
 
-# Why is this blank?
-xgb_imp
-
 xgb.ggplot.importance(xgb_imp, xlab = "Relative importance")
 
 ```
