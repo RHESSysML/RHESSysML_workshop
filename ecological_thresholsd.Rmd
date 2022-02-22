@@ -1,0 +1,84 @@
+---
+title: "Thresholds"
+author: "RHESSysML Capstone Group"
+date: "2/5/2022"
+output: 
+  rmarkdown::html_document:
+    theme: cerulean
+---
+
+# Introduction
+
+# Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen=999)
+
+## Standard packages
+library(tidyverse)
+library(here)
+library(patchwork)
+library(psych)
+library(kableExtra)
+library(lubridate)
+
+## Machine Learning packages
+library(caret)
+library(spatialRF)
+library(randomForest)
+library(party)
+library(partykit)
+library(permimp)
+
+#source("feature_selection.R")
+```
+
+# Data Preparation
+
+## Load Data
+
+```{r load_data, message=FALSE}
+df <- read_csv(here("data", "sageres.csv")) 
+```
+
+## Clean and Aggregate Data
+
+```{r}
+group_cols <- c("date", "stratumID", "clim", "scen", "topo")
+factor_vars <- c("stratumID", "clim", "scen", "topo")
+response_var <- "npp"
+
+df[,factor_vars] <- lapply(df[,factor_vars], factor)
+```
+
+
+```{r agg_data}
+df_monthly <- df %>% 
+  ## Convert date column to proper class
+  mutate(date = ymd(date)) %>% 
+  ## Round to nearest month
+  mutate(date = floor_date(date, "month")) %>%
+  ## Convert aspect and slope from radians to degrees
+  mutate(aspect=aspect*(180/pi),
+         slope=slope*(180/pi)) %>% 
+  group_by(across(all_of(group_cols))) %>%
+  ## Add derived variables peak swe and swe_precip_ratio
+  mutate(peak_swe=max(swe)) %>%
+  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>%
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+  ## Reorder response variables first
+  select(!!response_var, everything()) %>% 
+  ## Remove unwanted variables (manually?)
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy))
+             
+```
+
+```{r}
+ggplot(data=df_monthly %>% filter(stratumID=="36815011", topo=="U", clim==0, scen==1),
+       aes(x=rank(npp), y=npp)) +
+  geom_point()
+```
+

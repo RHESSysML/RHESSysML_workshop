@@ -25,6 +25,20 @@ Our question is: **What are the main variables that impact NPP?** NPP is an indi
 df <- read_csv(here("data", "sageres.csv"))
 ```
 
+```{r}
+library(zoo)
+
+df_monthly <- df %>% 
+  group_by(year, month) %>% 
+  summarize(npp = mean(npp)) 
+
+df_monthly$date = as.yearmon(paste0(df_monthly$year, df_monthly$month, date="-"), "%Y-%M")
+
+ggplot(data=df_monthly, aes(x=c(year, month), y=npp)) +
+  geom_point()
+```
+
+
 # Visualizations
 
 ## Simple correlation plots

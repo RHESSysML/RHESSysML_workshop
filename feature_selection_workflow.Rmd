@@ -91,7 +91,7 @@ df_wy <- df %>%
          feb_tavg = mean(tavg[month == 2]),
          mar_tavg = mean(tavg[month == 3]),
          apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5]),) %>% 
+         may_tavg = mean(tavg[month == 5])) %>% 
   mutate(peak_swe=max(swe)) %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
@@ -99,17 +99,17 @@ df_wy <- df %>%
   ## Reorder response variables first
   select(!!response_var, everything()) %>% 
   ## Remove unwanted variables (manually?)
-  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy))
+  select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
 
 ## Create data frame with only climate scenario 0
 df_wy0 <- df_wy %>% 
   filter(clim==0) %>% 
-  select(-clim)
+  select(-c(clim, wy))
 
 ## Create data frame with only climate scenario 2
 df_wy2 <- df_wy %>% 
   filter(clim==2) %>% 
-  select(-clim)
+  select(-c(clim, wy))
 ```
 
 Now, we have two data tables representing the two climate scenarios.
@@ -141,33 +141,20 @@ summarize_data(df_wy2)
 We can also look at the key study area characteristics. In this study, there are six study areas.
 
 ```{r describe_topos}
-topos <- df_wy %>% 
+topos <- df_wy %>%
   filter(clim==0) %>% 
-  select(c(stratumID, topo, elev, aspect, slope, tmin, tavg, tmax, precip)) %>%
-  ## Aggregate by year
-  group_by(topo, stratumID, elev, aspect, slope) %>% 
-  summarize(tmin = mean(tmin),
-            tavg = mean(tavg),
-            tmax = mean(tmax),
-            precip = sum(precip)*1000) %>% 
-  ## Aggregate by study area
-  group_by(stratumID, topo, elev, aspect, slope) %>% 
-  summarize(across(everything(), list(mean))) %>% 
-  ungroup() %>% 
-  rename_with(~str_remove(., "_1")) %>% 
+  select(c(stratumID, topo, elev, aspect, slope)) %>%
+  group_by(stratumID, topo) %>% 
+  summarize_if(is.numeric, mean) %>% 
   mutate(topo = case_when(topo == "M" ~ "Mid-Slope",
                           topo == "U" ~ "Upslope",
-                          topo == "R" ~ "Riparian")) %>% 
-  dplyr::arrange(topo) %>% 
+                          topo == "R" ~ "Riparian")) %>%
+  dplyr::arrange(topo) %>%
   rename("Stratum"=stratumID,
          "Topo"=topo,
          "Elevation (m)"=elev,
          "Aspect (degrees CCW from East)"=aspect,
-         "Slope (degrees)"=slope,
-         "Min Temp.(C)"=tmin,
-         "Mean Temp.(C)"=tavg,
-         "Max Temp. (C)"=tmax,
-         "Precipitation (mm)"=precip)
+         "Slope (degrees)"=slope)
 
 kable(topos, 
       digits=2, 
@@ -175,7 +162,6 @@ kable(topos,
       align=c("l", rep("r", ncol(topos) - 1))) %>% 
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
-
 
 # Remove Multicollinearity
 
@@ -302,6 +288,7 @@ TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
 TO DO: ADD MORE RANDOM FOREST MODELS AND IMPORTANCE METRICS
 
 ```{r get_random_forests}
+set.seed(4326)
 ## Random Forest package with replace=FALSE
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
@@ -310,6 +297,7 @@ rf_wy0 <- randomForest(formula=npp~.,
                        keep.forest=TRUE,
                        keep.inbag=TRUE)
 
+set.seed(4326)
 ## Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
