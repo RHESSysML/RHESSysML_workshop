@@ -34,6 +34,7 @@ library(randomForest)
 library(party)
 library(partykit)
 library(permimp)
+library(rfUtilities)
 
 #source("feature_selection.R")
 ```
@@ -323,6 +324,72 @@ imp_wy2 <- permimp(rf_wy2,
 
 TO DO: ADD CROSS VALIDATION (10-Fold)
 (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6049094/)
+
+# Model Evaluation
+
+```{r}
+plot(rf_wy0)
+```
+
+Testing the rfUtilities
+
+```{r}
+multi.collinear(numericpredictors.df_wy0, p=.05)
+```
+
+```{r}
+allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
+
+var_list <- c("precip", "rz_storage", "peak_swe")
+
+for (i in var_list) {
+  for (j in var_list) {
+    if (i==j) {
+      next
+    }
+      bivariate.partialDependence(x=rf_wy0,
+                            pred.data=allpredictors.df_wy0_reduced,
+                            v1=i,
+                            v2=j,
+                            grid.size=8,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
+    }
+  }
+```
+
+```{r}
+rf.classBalance(ydata=df_wy0_reduced[,"npp"],
+                xdata=df_wy0_reduced[,2:ncol(df_wy0_reduced)])
+```
+
+```{r}
+rf.crossValidation(x=rf_wy0,
+                   xdata=allpredictors.df_wy0_reduced,
+                   p=0.1,
+                   n=10)
+```
+
+```{r}
+# rf.partial.ci(m=rf_wy0,
+#               x=df_wy0_reduced,
+#               yname="npp",
+#               xname="rz_storage",
+#               delta=TRUE)
+```
+
+
+```{r}
+rf.regression.fit(rf_wy0)
+```
+
+```{r}
+rf.significance(rf_wy0,
+                allpredictors.df_wy0_reduced,
+                p=.1,
+                nperm=10)	
+```
+
 
 # Visualize Results
 
