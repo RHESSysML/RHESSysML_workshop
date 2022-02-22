@@ -20,6 +20,9 @@ library(kableExtra)
 ## Machine Learning packages
 library(caret)
 library(xgboost)
+library(Ckmeans.1d.dp)
+
+options(scipen = 5)
 ```
 
 # Data Preparation
@@ -83,25 +86,38 @@ df_wy2 <- df_wy %>%
 The `xgboost` package requires a numeric matrix as input, so factor variables (`topo`, `scen`, `stratumID`) need to be converted to numeric:
 
 ```{r matrix_setup}
-npp_train0 <- df_wy0$npp
-npp_train2 <- df_wy2$npp
+set.seed(10)
 
-## Convert factors to numeric for first climate scenario
-xgb_matrix_cl0 <- df_wy0 %>% 
+npp_lab <- df_wy$npp
+
+sample_split <- sample.split(Y = df_wy$npp, SplitRatio = 0.8)
+train_set <- subset(x = df_wy, sample_split == TRUE)
+test_set <- subset(x = df_wy, sample_split == FALSE)
+
+# Specify outcome variable (supervised learning)
+npp_train <- train_set$npp
+npp_test <- test_set$npp
+
+## Convert factors to numeric for training data
+xgb_matrix_train_x <- train_set %>% 
   mutate(stratumID = as.numeric(as.character(stratumID)),
          scen = as.numeric(as.character(scen)),
-         topo = as.numeric(topo)) %>% 
+         topo = as.numeric(topo),
+         clim = as.numeric(clim)) %>%
+  select(-npp) %>% 
   as.matrix() %>% 
-  xgb.DMatrix(label = npp_train0)
+  xgb.DMatrix(label = npp_train)
 
-## Convert factors to numeric for second climate scenario
-xgb_matrix_cl2 <- df_wy2 %>% 
+## Convert factors to numeric for testing data
+xgb_matrix_test_x <- test_set %>% 
   mutate(stratumID = as.numeric(as.character(stratumID)),
          scen = as.numeric(as.character(scen)),
-         topo = as.numeric(topo)) %>% 
+         topo = as.numeric(topo),
+         clim = as.numeric(clim)) %>%
+  select(-npp) %>% 
   as.matrix() %>% 
-  xgb.DMatrix(label = npp_train2)
-                                    
+  xgb.DMatrix(label = npp_test)
+
 ```
 
 ## Gradient Boosting Model
@@ -132,11 +148,41 @@ xgb_params <- list(
 
 ```{r}
 xgb_model <- xgb.train(
-  params = xgb_params,
-  data = xgb_matrix_cl2,
+#  params = xgb_params,
+  data = xgb_matrix_train_x,
   nrounds = 5000,
   verbose = 1
 )
 xgb_model
+```
+
+```{r}
+xgb_preds <- as.data.frame(predict(xgb_model, xgb_matrix_test_x, reshape = TRUE))
+xgb_pred_df <- xgb_preds %>% 
+  mutate(RHESSYS_npp = npp_test)
+xgb_preds
+```
+# Visualize
+
+```{r}
+xgb_imp <- xgb.importance(model = xgb_model)
+
+# Why is this blank?
+xgb_imp
+
+xgb.ggplot.importance(xgb_imp, xlab = "Relative importance")
+
+```
+
+```{r}
+train_data <- train_set %>% 
+  mutate(stratumID = as.numeric(as.character(stratumID)),
+         scen = as.numeric(as.character(scen)),
+         topo = as.numeric(topo),
+         clim = as.numeric(clim)) %>%
+  select(-npp) %>% 
+  as.matrix()
+
+xgb.plot.shap.summary(data = train_data, model = xgb_model)
 ```
 
