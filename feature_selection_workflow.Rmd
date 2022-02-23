@@ -410,6 +410,8 @@ wy2_plot
 
 ## Previewing relationships between important predictors and NPP
 
+
+
 ```{r}
 # assigning first and second most important variables to objects
 pred1_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 1]
@@ -432,7 +434,7 @@ df2_pred_binned <- df_wy2 %>%
 ```
 
 ```{r}
-ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
+ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
   geom_point() +
   geom_smooth(method = "lm") +
   labs(x = str_to_title(pred1_clim0), y = response_var,
@@ -440,7 +442,7 @@ ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
                      "in 0 degree climate scenario")) +
   theme_minimal()
 
-ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
+ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap("bin") +
@@ -449,7 +451,7 @@ ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
                      pred2_clim0, "\n in 0 degree climate scenario")) +
   theme_minimal()
 
-ggplot(df2_pred_binned, aes(x = pred1, y = df2_pred_binned[[response_var]])) +
+ggplot(df2_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap("bin") +
