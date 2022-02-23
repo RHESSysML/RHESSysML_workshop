@@ -340,22 +340,13 @@ multi.collinear(numericpredictors.df_wy0, p=.05)
 ```{r}
 allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
 
-var_list <- c("precip", "rz_storage", "peak_swe")
-
-for (i in var_list) {
-  for (j in var_list) {
-    if (i==j) {
-      next
-    }
-      bivariate.partialDependence(x=rf_wy0,
+bivariate.partialDependence(x=rf_wy0,
                             pred.data=allpredictors.df_wy0_reduced,
-                            v1=i,
-                            v2=j,
-                            grid.size=8,
+                            v1="lai",
+                            v2="peak_swe",
+                            grid.size=15,
                             col.ramp=c("orange", "green"),
                             ncols=20)
-    }
-  }
 ```
 
 ```{r}
@@ -390,6 +381,17 @@ rf.significance(rf_wy0,
                 nperm=10)	
 ```
 
+```{r}
+# worth showing other importance measures and explaining why we don't use them?
+varImpPlot(rf_wy0)
+```
+
+```{r}
+#library(shapper)
+#install_shap()
+
+#not sure we want to be forcing people to install miniconda
+```
 
 # Visualize Results
 
