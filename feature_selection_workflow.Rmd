@@ -240,7 +240,8 @@ df_wy2_reduced <- df_wy2 %>%
 
 TO DO: CREATE SUMMARY AND VISUALIZATIONS OF VARIABLES REMOVED. use warning messages for guidance.
 
-**Added plots of preliminary importance and VIF showing selected and removed variables and summary table containing all that info. Maybe we could include a pairs plot too to show correlation, or include max correlation plot / summary.**
+**Feb 20 - added pairs plot of all removed variables.**
+
 
 ```{r}
 # creating df with preliminary variable importance (and rank) and whether each was selected or removed
@@ -260,6 +261,9 @@ removed_vif0 <- vif(allpredictors.df_wy0)
 removed_summary0 <- removed_importance0 %>% 
   left_join(removed_vif0, by = "variable")
 
+# create df of only removed variables
+removed_corr0 <- df_wy0[-which(names(df_wy0) %in% c(wy0_select_variables, group_cols))]
+
 removed_imp0_plot <- ggplot(removed_summary0, aes(x = importance, y = reorder(variable, importance), fill = selected)) +
   geom_col() +
   labs(x = "Preliminary Importance", y = "Variable")
@@ -267,6 +271,8 @@ removed_imp0_plot <- ggplot(removed_summary0, aes(x = importance, y = reorder(va
 removed_vif0_plot <- ggplot(removed_summary0, aes(x = vif, y = reorder(variable, vif), fill = selected)) +
   geom_col() +
   labs(x = "Variable Inflation Factor", y = "Variable")
+
+removed_pairs_plot <- GGally::ggpairs(removed_corr0)
 
 removed_summary0 %>%
   select(-importance) %>% 
@@ -276,6 +282,7 @@ removed_summary0 %>%
 
 removed_imp0_plot
 removed_vif0_plot
+removed_pairs_plot
 ```
 
 
@@ -310,6 +317,11 @@ rf_wy2 <- randomForest(formula=npp~.,
 Lastly, we measure variable importance using ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
 
 TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
+
+**Feb 20 - added descriptions of importance types. We can cut this back a bit if it's too long.**
+
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. 
+
 
 ```{r get_importance, warning=FALSE}
 imp_wy0 <- permimp(rf_wy0, 
@@ -395,6 +407,59 @@ wy2_plot <- plot_imp(df_imp_wy2)
 wy0_plot
 wy2_plot
 ```
+
+## Previewing relationships between important predictors and NPP
+
+```{r}
+# assigning first and second most important variables to objects
+pred1_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 1]
+pred2_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 2]
+pred1_clim2 <- df_imp_wy0$Variable[df_imp_wy2$Rank == 1]
+pred2_clim2 <- df_imp_wy0$Variable[df_imp_wy2$Rank == 2]
+
+
+df0_pred_binned <- df_wy0 %>% 
+  select(pred1_clim0, pred2_clim0, response_var) %>% 
+  mutate(pred1 = df_wy0[[pred1_clim0]],
+         pred2 = df_wy0[[pred2_clim0]]) %>% 
+  mutate(bin = as.numeric(cut(pred2, 4)))
+
+df2_pred_binned <- df_wy2 %>% 
+  select(pred1_clim2, pred2_clim2, response_var) %>% 
+  mutate(pred1 = df_wy2[[pred1_clim2]],
+         pred2 = df_wy2[[pred2_clim2]]) %>% 
+  mutate(bin = as.numeric(cut(pred2, 4)))
+```
+
+```{r}
+ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = str_to_title(pred1_clim0), y = response_var,
+       title = paste(pred1_clim0, "vs", response_var,
+                     "in 0 degree climate scenario")) +
+  theme_minimal()
+
+ggplot(df0_pred_binned, aes(x = pred1, y = df0_pred_binned[[response_var]])) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap("bin") +
+  labs(x = str_to_title(pred1_clim0), y = response_var,
+       title = paste(pred1_clim0, "vs", response_var, "given different value classes of",
+                     pred2_clim0, "\n in 0 degree climate scenario")) +
+  theme_minimal()
+
+ggplot(df2_pred_binned, aes(x = pred1, y = df2_pred_binned[[response_var]])) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap("bin") +
+  labs(x = str_to_title(pred1_clim2), y = response_var,
+       title = paste(pred1_clim0, "vs", response_var, "given different value classes of",
+                     pred2_clim0, "\n in 2 degree climate scenario")) +
+  theme_minimal()
+```
+
+
 
 TO DO: INCLUDE MORE VISUALIZATIONS, INCLUDING CV RESULTS, PLOTS OF IMPORTANT VARIABLE RELATIONSHIPS, ETC.
 
