@@ -288,6 +288,17 @@ TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
 
 TO DO: ADD MORE RANDOM FOREST MODELS AND IMPORTANCE METRICS
 
+```{r}
+allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
+
+set.seed(4326)
+x=df_wy0_reduced[,-1]
+y=df_wy0_reduced[,1]
+
+bestmtry <- tuneRF(x, y)
+print(bestmtry)
+```
+
 ```{r get_random_forests}
 set.seed(4326)
 ## Random Forest package with replace=FALSE
@@ -327,31 +338,12 @@ TO DO: ADD CROSS VALIDATION (10-Fold)
 
 # Model Evaluation
 
-```{r}
-plot(rf_wy0)
-```
+The following section provides visualizations and statistics to evaluate the random forest performance.
 
-Testing the rfUtilities
+First, simply calling the random forest shows the percent variance explained.
 
 ```{r}
-multi.collinear(numericpredictors.df_wy0, p=.05)
-```
-
-```{r}
-allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
-
-bivariate.partialDependence(x=rf_wy0,
-                            pred.data=allpredictors.df_wy0_reduced,
-                            v1="lai",
-                            v2="peak_swe",
-                            grid.size=15,
-                            col.ramp=c("orange", "green"),
-                            ncols=20)
-```
-
-```{r}
-rf.classBalance(ydata=df_wy0_reduced[,"npp"],
-                xdata=df_wy0_reduced[,2:ncol(df_wy0_reduced)])
+rf_wy0
 ```
 
 ```{r}
@@ -362,35 +354,30 @@ rf.crossValidation(x=rf_wy0,
 ```
 
 ```{r}
-# rf.partial.ci(m=rf_wy0,
-#               x=df_wy0_reduced,
-#               yname="npp",
-#               xname="rz_storage",
-#               delta=TRUE)
-```
-
-
-```{r}
-rf.regression.fit(rf_wy0)
+bivariate.partialDependence(x=rf_wy0,
+                            pred.data=allpredictors.df_wy0_reduced,
+                            v1="lai",
+                            v2="peak_swe",
+                            grid.size=15,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
 ```
 
 ```{r}
-rf.significance(rf_wy0,
-                allpredictors.df_wy0_reduced,
-                p=.1,
-                nperm=10)	
-```
-
-```{r}
-# worth showing other importance measures and explaining why we don't use them?
 varImpPlot(rf_wy0)
 ```
 
 ```{r}
-#library(shapper)
-#install_shap()
+library(randomForestExplainer)
 
-#not sure we want to be forcing people to install miniconda
+min_depth_frame <- min_depth_distribution(rf_wy0)
+
+plot_min_depth_distribution(min_depth_frame,
+                            mean_sample="relevant_trees")
+```
+
+```{r}
+plot_predict_interaction(rf_wy0, df_wy0_reduced, "rz_storage", "precip")
 ```
 
 # Visualize Results
