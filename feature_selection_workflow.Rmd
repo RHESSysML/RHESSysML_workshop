@@ -75,10 +75,13 @@ TO DO: ADD DERIVED VARIABLES (SWE AND MONTHLY TEMPS) **DONE (maybe?)**
 ## Convert categorical variables to factors
 df[,factor_vars] <- lapply(df[,factor_vars], factor)
 
+## Change aspect and slope from radians to degrees
 df_wy <- df %>% 
-  ## Change aspect and splope from radians to degrees
   mutate(aspect=aspect*(180/pi),
-         slope=slope*(180/pi)) %>% 
+         slope=slope*(180/pi))
+
+## Create features for each monthly average temp.
+df_wy <- df_wy %>%   
   group_by(across(all_of(group_cols))) %>% 
   mutate(jun_tavg = mean(tavg[month == 6]),
          jul_tavg = mean(tavg[month == 7]),
@@ -91,14 +94,18 @@ df_wy <- df %>%
          feb_tavg = mean(tavg[month == 2]),
          mar_tavg = mean(tavg[month == 3]),
          apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5])) %>% 
+         may_tavg = mean(tavg[month == 5]))
+
+## Create features for peak swe and the peak_swe/precip ratio
+df_wy <- df_wy %>% 
   mutate(peak_swe=max(swe)) %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
-  ungroup() %>% 
-  ## Reorder response variables first
-  select(!!response_var, everything()) %>% 
-  ## Remove unwanted variables (manually?)
+  ungroup()
+
+## Reorder response variables first and remove any unwanted variables (manually?)
+df_wy <- df_wy %>% 
+  select(!!response_var, everything()) %>%
   select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
 
 ## Create data frame with only climate scenario 0
