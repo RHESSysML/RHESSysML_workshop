@@ -431,13 +431,13 @@ df0_pred_binned <- df_wy0 %>%
   select(pred1_clim0, pred2_clim0, response_var) %>% 
   mutate(pred1 = df_wy0[[pred1_clim0]],
          pred2 = df_wy0[[pred2_clim0]]) %>% 
-  mutate(bin = as.numeric(cut(pred2, 4)))
+  mutate(bin = as.numeric(ntile(pred2, 4)))
 
 df2_pred_binned <- df_wy2 %>% 
   select(pred1_clim2, pred2_clim2, response_var) %>% 
   mutate(pred1 = df_wy2[[pred1_clim2]],
          pred2 = df_wy2[[pred2_clim2]]) %>% 
-  mutate(bin = as.numeric(cut(pred2, 4)))
+  mutate(bin = as.numeric(ntile(pred2, 4)))
 ```
 
 ```{r}
