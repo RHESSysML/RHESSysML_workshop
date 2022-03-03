@@ -22,6 +22,10 @@ library(caret)
 library(xgboost)
 library(Ckmeans.1d.dp)
 
+# XGBoost visualization dependencies
+library(caTools)
+library(DiagrammeR)
+
 options(scipen = 5)
 ```
 
@@ -181,5 +185,10 @@ train_data <- train_set %>%
   as.matrix()
 
 xgb.plot.shap.summary(data = train_data, model = xgb_model)
+```
+```{r}
+xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
+
+
 ```
 
