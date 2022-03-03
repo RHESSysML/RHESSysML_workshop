@@ -7,6 +7,7 @@ library(here)
 library(patchwork)
 library(psych)
 library(kableExtra)
+library(shinythemes)
 
 #options(scipen=999)
 
@@ -62,32 +63,39 @@ df_wy2 <- df_wy %>%
 
 # Create UI
 ui <- fluidPage(
+  theme = shinytheme("superhero"),
   titlePanel("RHESSys Output Exploration"),
-  sidebarLayout(
-    sidebarPanel("Varibles to Explore",
-                 checkboxGroupInput("stratum_sel", label = h3("Select desired stratum to look at:"), 
-                                    choices = unique(df_wy$stratumID),
-                                    selected = unique(df_wy$stratumID)),
-                 checkboxGroupInput("topo_sel", label = h3("Select topography types to look at:"), 
-                                    choices = unique(df_wy$topo),
-                                    selected = unique(df_wy$topo)),
-                 varSelectInput(inputId = "dependent_variable",
-                             label = "Select your dependent variable:",
-                             data = df_wy,
-                             selected = "npp"),
-                 varSelectInput(inputId = "independent_variable",
-                             label = "Select your independent variable:",
-                             data = df_wy,
-                             selected = "precip"),
-                 selectInput(inputId = "pt_color",
-                             label = "Select a point color:",
-                             choices = c("Black" = "black",
-                                         "Red" = "red",
-                                         "Blue" = "blue",
-                                         "Green" = "green"))),
-    
-    mainPanel("Visual Graph:",
-              plotOutput(outputId = "variable_plot"))
+  navbarPage(
+    tabPanel("Variable Importance"),
+    tabPanel(
+      "Visualizations",
+      sidebarLayout(
+        sidebarPanel("Varibles to Explore",
+                     checkboxGroupInput("stratum_sel", label = h3("Select desired stratum to look at:"),
+                                        choices = unique(df_wy$stratumID),
+                                        selected = unique(df_wy$stratumID)),
+                     checkboxGroupInput("topo_sel", label = h3("Select topography types to look at:"),
+                                        choices = unique(df_wy$topo),
+                                        selected = unique(df_wy$topo)),
+                     varSelectInput(inputId = "dependent_variable",
+                                 label = "Select your dependent variable:",
+                                 data = df_wy,
+                                 selected = "npp"),
+                     varSelectInput(inputId = "independent_variable",
+                                 label = "Select your independent variable:",
+                                 data = df_wy,
+                                 selected = "precip"),
+                     selectInput(inputId = "pt_color",
+                                 label = "Select a point color:",
+                                 choices = c("Black" = "black",
+                                             "Red" = "red",
+                                             "Blue" = "blue",
+                                             "Green" = "green"))),
+
+        mainPanel("Visual Graph:",
+                  plotOutput(outputId = "variable_plot"))
+      )
+    ),
   )
 )
 
