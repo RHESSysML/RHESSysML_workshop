@@ -235,11 +235,13 @@ TO DO: ADD SOURCE FOR SELECTING THRESHOLDS
 
 ```{r remove_multicollinearity, warning=FALSE}
 # Create list of selected variables
-wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5)$vif
-wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75)$cor
+wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5)$selected.variables
+wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75)$selected.variables
+wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
 
-
-wy2_select_variables <- remove_multicollinearity(vif.threshold=5, cor.threshold=0.75, predictors.df=allpredictors.df_wy2)
+wy2_vif <- remove_vif(predictors.df=allpredictors.df_wy2, vif.threshold=5)$selected.variables
+wy2_cor <- remove_cor(predictors.df=allpredictors.df_wy2, cor.threshold=0.75)$selected.variables
+wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
 df_wy0_reduced <- df_wy0 %>% 
