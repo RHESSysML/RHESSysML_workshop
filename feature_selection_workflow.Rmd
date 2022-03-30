@@ -295,11 +295,9 @@ removed_pairs_plot
 
 # Feature Importance
 
-Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest method because ADD DESCRIPTION AND SOURCE HERE. Additionally, we use this package/function because ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
+Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest because this method has been proven to be able to make predictions and assess feature importance with a high degree of accuracy in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques.
 
-TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
-
-TO DO: ADD MORE RANDOM FOREST MODELS AND IMPORTANCE METRICS
+### Hyper-Parameter Tuning
 
 ```{r}
 allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
@@ -311,6 +309,8 @@ y=df_wy0_reduced[,1]
 bestmtry <- tuneRF(x, y)
 print(bestmtry)
 ```
+
+### Random Forest Models
 
 ```{r get_random_forests}
 set.seed(4326)
@@ -331,10 +331,6 @@ rf_wy2 <- randomForest(formula=npp~.,
                        keep.forest=TRUE,
                        keep.inbag=TRUE)
 ```
-
-Lastly, we measure variable importance using ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
-
-TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
 
 Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
 
@@ -520,7 +516,11 @@ OVERALL TO DO: TEST, CHECK, AND CORRECT ALL INCORRECT ASSUMPTIONS, CHOICES, ETC.
 
 # References
 
+Cutler, D. Richard, Thomas C. Edwards, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. 2007. "Random Forests for Classification in Ecology." *Ecology* 88 (11): 2783--92. <https://doi.org/10.1890/07-0539.1>.
+
 Debeer, Dries, and Carolin Strobl. 2020. "Conditional Permutation Importance Revisited." *BMC Bioinformatics* 21 (1): 307. <https://doi.org/10.1186/s12859-020-03622-2>.
+
+Prasad, Anantha M., Louis R. Iverson, and Andy Liaw. 2006. "Newer Classification and Regression Tree Techniques: Bagging and Random Forests for Ecological Prediction." *Ecosystems* 9 (2): 181--99. <https://doi.org/10.1007/s10021-005-0054-1>.
 
 Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
 
