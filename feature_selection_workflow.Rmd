@@ -9,7 +9,7 @@ output:
 
 # Introduction
 
-The following R Markdown document describes the necessary steps to determine important relationships between predictor variables and a response variable in RHESSys model output. Specific code examples will be based on RHESSys model output from the Sagehen Creek Experimental Watershed in the Sierra Nevada, CA. The data set incorporates model parameter uncertainty, topographic spatial variability, and climate change scenarios. The data set and associated metadata can be accessed here: https://www.hydroshare.org/resource/2a31bd57b7e74c758b7857679ffbb4c5/. 
+The following R Markdown document describes the necessary steps to determine important relationships between predictor variables and a response variable in RHESSys model output. Specific code examples will be based on RHESSys model output from the Sagehen Creek Experimental Watershed in the Sierra Nevada, CA. The data set incorporates model parameter uncertainty, topographic spatial variability, and climate change scenarios. The data set and associated metadata can be accessed here: <https://www.hydroshare.org/resource/2a31bd57b7e74c758b7857679ffbb4c5/>.
 
 The following research question will be addressed in this process: **What are the most important predictors of Net Primary Productivity in differing climate scenarios?**
 
@@ -20,14 +20,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 options(scipen=999)
 
-## Standard packages
+# Standard packages
 library(tidyverse)
 library(here)
 library(patchwork)
 library(psych)
 library(kableExtra)
+library(zeallot)
 
-## Machine Learning packages
+# Machine Learning packages
 library(caret)
 library(spatialRF)
 library(randomForest)
@@ -35,8 +36,6 @@ library(party)
 library(partykit)
 library(permimp)
 library(rfUtilities)
-
-#source("feature_selection.R")
 ```
 
 # Data Preparation
@@ -51,70 +50,67 @@ df <- read_csv(here("data", "sageres.csv"))
 
 First, RHESSys output will need to be aggregated and cleaned based on specific research question. Possible changes include:
 
-1. Changing the temporal resolution (i.e. Daily to Yearly measurements).
+1.  Changing the temporal resolution (i.e. Daily to Yearly measurements).
 
-2. Converting variable units (i.e. Radians to Degrees).
+2.  Converting variable units (i.e. Radians to Degrees).
 
-3. Converting variable class (i.e. numeric/character to factor).
+3.  Converting variable class (i.e. numeric/character to factor).
 
-4. Creating derived variables (i.e. Peak SWE).
+4.  Creating derived variables (i.e. Peak SWE).
 
 The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable.
 
 ```{r user_inputs}
-## USER INPUTS
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
 factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
 response_var <- "npp"
 ```
 
-Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames
-
-TO DO: ADD DERIVED VARIABLES (SWE AND MONTHLY TEMPS) **DONE (maybe?)**
+Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames.
 
 ```{r prepare_data}
-## Convert categorical variables to factors
+# Convert categorical variables to factors
 df[,factor_vars] <- lapply(df[,factor_vars], factor)
 
-## Change aspect and slope from radians to degrees
+# Change aspect and slope from radians to degrees
 df_wy <- df %>% 
   mutate(aspect=aspect*(180/pi),
          slope=slope*(180/pi))
 
-## Create features for each monthly average temp.
+# Create features for each monthly average temp.
 df_wy <- df_wy %>%   
   group_by(across(all_of(group_cols))) %>% 
-  mutate(jun_tavg = mean(tavg[month == 6]),
+  mutate(jan_tavg = mean(tavg[month == 1]),
+         feb_tavg = mean(tavg[month == 2]),
+         mar_tavg = mean(tavg[month == 3]),
+         apr_tavg = mean(tavg[month == 4]),
+         may_tavg = mean(tavg[month == 5]),
+         jun_tavg = mean(tavg[month == 6]),
          jul_tavg = mean(tavg[month == 7]),
          aug_tavg = mean(tavg[month == 8]),
          sep_tavg = mean(tavg[month == 9]),
          oct_tavg = mean(tavg[month == 10]),
          nov_tavg = mean(tavg[month == 11]),
-         dec_tavg = mean(tavg[month == 12]),
-         jan_tavg = mean(tavg[month == 1]),
-         feb_tavg = mean(tavg[month == 2]),
-         mar_tavg = mean(tavg[month == 3]),
-         apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5]))
+         dec_tavg = mean(tavg[month == 12]))
 
-## Create features for peak swe and the peak_swe/precip ratio
+# Create features for peak swe and the peak_swe/precip ratio
 df_wy <- df_wy %>% 
   mutate(peak_swe=max(swe)) %>%
   mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
   summarise_if(is.numeric, mean) %>% 
   ungroup()
 
-## Reorder response variables first and remove any unwanted variables (manually?)
+# Reorder response variables first and remove any unwanted variables (manually?)
 df_wy <- df_wy %>% 
   select(!!response_var, everything()) %>%
   select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
 
-## Create data frame with only climate scenario 0
+# Create data frame with only climate scenario 0
 df_wy0 <- df_wy %>% 
   filter(clim==0) %>% 
   select(-c(clim, wy))
 
-## Create data frame with only climate scenario 2
+# Create data frame with only climate scenario 2
 df_wy2 <- df_wy %>% 
   filter(clim==2) %>% 
   select(-c(clim, wy))
@@ -126,9 +122,9 @@ Now, we have two data tables representing the two climate scenarios.
 
 Next, we want to get a summary description of the data set. This is crucial for many reasons:
 
-1. Shows early on in the process if any variables do not have the expected range, magnitude, class, etc.
+1.  Shows early on in the process if any variables do not have the expected range, magnitude, class, etc.
 
-2. Provides information on data set characteristics that are important for decisions later on in the machine learning process.
+2.  Provides information on data set characteristics that are important for decisions later on in the machine learning process.
 
 ```{r describe_data}
 summarize_data <- function(df) {
@@ -173,57 +169,63 @@ kable(topos,
 
 # Remove Multicollinearity
 
-Highly correlated predictor variables are not as much a concern in machine learning when creating a predictive model (ADD SOURCE). However, for this process of assessing relative predictor variable importance, multicollinear variables have biased importance (ADD SOURCE). Therefore, these need to be handled prior to assessing feature importance.
-
-TO DO: ADD SOURCES FOR THIS SECTION
+Highly correlated predictor variables are not as much a concern in machine learning when creating a predictive model. However, for this process of assessing relative predictor variable importance, multicollinear variables have biased importance (Strobl et al. 2008). Therefore, these need to be handled prior to assessing feature importance.
 
 ## Identify and Remove Correlated Variables
 
 First, we create data frames containing only the predictor variables to assist with the next steps.
 
 ```{r get_predictors}
-## Find number of response variables specified
+# Find number of response variables specified
 num_response <- length(response_var)
 
-## Save data frames of predictor variables for first climate scenario
+# Save data frames of predictor variables for first climate scenario
 numericpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)] %>% select(where(is.numeric))
 allpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)]
 factorpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)] %>% select(where(is.factor))
 
-## Save data frames of predictor variables for second climate scenario
+# Save data frames of predictor variables for second climate scenario
 numericpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(where(is.numeric))
 allpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)]
 factorpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(where(is.factor))
 ```
 
-Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity ([Source](## Reference: https://gist.github.com/BlasBenito/768a45951a3d0c5ba355f52be94b05de)). In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their **relative** importance should be accurate.
+Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity ([Source](##%20Reference:%20https://gist.github.com/BlasBenito/768a45951a3d0c5ba355f52be94b05de)). In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their **relative** importance should be accurate.
 
 **Do we want to do this preliminary imp process for clim 2 as well?**
 
 ```{r create_correlation_function}
-## First climate scenario
+# First climate scenario
 
-## Find preliminary importance using random forest
+# Find preliminary importance using random forest
 imp <- rf(data=df_wy,
           dependent.variable.name=response_var,
           predictor.variable.names=colnames(allpredictors.df_wy0),
           verbose=FALSE)
 
-## Set preference order based on variable importance.
+# Set preference order based on variable importance.
 preference.order <- imp$importance$per.variable$variable
 
-## Preference order can be determined manually for variables of interest:
+# Preference order can be determined manually for variables of interest:
 #preference.order <- c("precip", "rz_storage", "trans", "evap")
+```
 
-## Remove variables based on VIF and Correlation thresholds
-remove_multicollinearity <- function(vif.threshold=5, cor.threshold=0.75, predictors.df) {
+```{r}
+# Remove variables based on VIF and Correlation thresholds
+remove_vif <- function(predictors.df, vif.threshold=5) {
   variable.selection <- auto_vif(x=predictors.df,
                                  vif.threshold=vif.threshold,
-                                 preference.order=preference.order) %>% 
-    auto_cor(cor.threshold=cor.threshold,
-             preference.order=preference.order)
+                                 preference.order=preference.order) 
   
-  variable.selection$selected.variables
+  return(variable.selection)
+}
+
+remove_cor <- function(predictors.df, cor.threshold=0.75) {
+  variable.selection <- auto_cor(x=predictors.df,
+                                 cor.threshold=cor.threshold,
+                                 preference.order=preference.order) 
+  
+  return(variable.selection)
 }
 ```
 
@@ -232,11 +234,14 @@ Thresholds for VIF and correlation can be set using the function below. For info
 TO DO: ADD SOURCE FOR SELECTING THRESHOLDS
 
 ```{r remove_multicollinearity, warning=FALSE}
-## Create list of selected variables
-wy0_select_variables <- remove_multicollinearity(vif.threshold=5, cor.threshold=0.75, predictors.df=allpredictors.df_wy0)
+# Create list of selected variables
+wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5)$vif
+wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75)$cor
+
+
 wy2_select_variables <- remove_multicollinearity(vif.threshold=5, cor.threshold=0.75, predictors.df=allpredictors.df_wy2)
 
-## Remove numeric variables with multicollinearity
+# Remove numeric variables with multicollinearity
 df_wy0_reduced <- df_wy0 %>% 
   select(c(all_of(response_var), colnames(factorpredictors.df_wy0), all_of(wy0_select_variables)))
 
@@ -246,13 +251,8 @@ df_wy2_reduced <- df_wy2 %>%
 
 ## Summary of Removed Variables
 
-TO DO: CREATE SUMMARY AND VISUALIZATIONS OF VARIABLES REMOVED. use warning messages for guidance.
-
-**Feb 20 - added pairs plot of all removed variables.**
-
-
 ```{r}
-# creating df with preliminary variable importance (and rank) and whether each was selected or removed
+# Create df with preliminary variable importance (and rank) and whether each was selected or removed
 removed_importance0 <- imp$variable.importance %>% 
   data.frame() %>% 
   rownames_to_column("variable") %>%
@@ -293,7 +293,6 @@ removed_vif0_plot
 removed_pairs_plot
 ```
 
-
 # Feature Importance
 
 Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest method because ADD DESCRIPTION AND SOURCE HERE. Additionally, we use this package/function because ADD DESCRIPTION AND SOURCE HERE. All decisions should be explained/explored.
@@ -315,7 +314,7 @@ print(bestmtry)
 
 ```{r get_random_forests}
 set.seed(4326)
-## Random Forest package with replace=FALSE
+# Random Forest package with replace=FALSE
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
                        replace=TRUE,
@@ -324,7 +323,7 @@ rf_wy0 <- randomForest(formula=npp~.,
                        keep.inbag=TRUE)
 
 set.seed(4326)
-## Random Forest package with replace=FALSE
+# Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
                        replace=TRUE,
@@ -337,23 +336,15 @@ Lastly, we measure variable importance using ADD DESCRIPTION AND SOURCE HERE. Al
 
 TO DO: ADD DESCRIPTIONS AND SOURCES TO THIS SECTION
 
-**Feb 20 - added descriptions of importance types. We can cut this back a bit if it's too long.**
-
-Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. 
-
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
 
 ```{r get_importance, warning=FALSE}
-imp_wy0 <- permimp(rf_wy0, 
-                   #conditional=TRUE,
-                   do_check=FALSE, progressBar=FALSE)
+imp_wy0 <- permimp(rf_wy0, do_check=FALSE, progressBar=FALSE)
 
-imp_wy2 <- permimp(rf_wy2, 
-                   #conditional=TRUE,
-                   do_check=FALSE, progressBar=FALSE)
+imp_wy2 <- permimp(rf_wy2, do_check=FALSE, progressBar=FALSE)
 ```
 
-TO DO: ADD CROSS VALIDATION (10-Fold)
-(https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6049094/)
+TO DO: ADD CROSS VALIDATION (10-Fold) (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6049094/>)
 
 # Model Evaluation
 
@@ -450,7 +441,6 @@ df_imp %>%
                                   ifelse(df_imp$Diff==0, "grey", "red"))))
 ```
 
-
 ```{r plot_imp}
 plot_imp <- function(imp_df) {
   df_name <- deparse(substitute(imp_df))
@@ -472,8 +462,6 @@ wy2_plot
 ```
 
 ## Previewing relationships between important predictors and NPP
-
-
 
 ```{r}
 # assigning first and second most important variables to objects
@@ -524,10 +512,16 @@ ggplot(df2_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
   theme_minimal()
 ```
 
-
-
 TO DO: INCLUDE MORE VISUALIZATIONS, INCLUDING CV RESULTS, PLOTS OF IMPORTANT VARIABLE RELATIONSHIPS, ETC.
 
 TO DO: INCLUDE VISUALIZATIONS COMPARING RF MODELS, DIFFERENT IMPORTANCE MEASURES
 
 OVERALL TO DO: TEST, CHECK, AND CORRECT ALL INCORRECT ASSUMPTIONS, CHOICES, ETC. THAT LEAD TO INCORRECT RESULTS OR UNDESIRABLE WORKFLOW
+
+# References
+
+Debeer, Dries, and Carolin Strobl. 2020. "Conditional Permutation Importance Revisited." *BMC Bioinformatics* 21 (1): 307. <https://doi.org/10.1186/s12859-020-03622-2>.
+
+Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
+
+Strobl, Carolin, Anne-Laure Boulesteix, Thomas Kneib, Thomas Augustin, and Achim Zeileis. 2008. "Conditional Variable Importance for Random Forests." *BMC Bioinformatics* 9 (1): 307. <https://doi.org/10.1186/1471-2105-9-307>.
