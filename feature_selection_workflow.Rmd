@@ -302,14 +302,56 @@ Now, the data frames are adequately prepared to determine predictor feature impo
 ### Hyper-Parameter Tuning
 
 ```{r}
-allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
-
 set.seed(4326)
-x=df_wy0_reduced[,-1]
-y=df_wy0_reduced[,1]
 
-bestmtry <- tuneRF(x, y)
-print(bestmtry)
+df_wy0_reduced <- as.data.frame(df_wy0_reduced)
+df_wy2_reduced <- as.data.frame(df_wy2_reduced)
+
+tune_rf_model <- function(df) {
+  
+  tuning <- vector(length = (ncol(df)-num_response))
+  
+  x=df[,-1]
+  y=df[,1]
+  
+  for (i in 1:length(tuning)) {
+    rf_tuning <- randomForest(x, y, mtry = i, ntree = 50)
+    tuning[i] <- tail(rf_tuning$mse, 1)
+  }
+  
+  return(tuning)
+  
+  # bestmtry <- match(min(tuning), tuning)
+  # return(bestmtry)
+}
+```
+
+```{r}
+mtry0 <- tune_rf_model(df_wy0_reduced)
+bestmtry0 <- match(min(mtry0), mtry0)
+
+ggplot(data=as.data.frame(mtry0), aes(x=1:length(mtry0), y=mtry0)) +
+  geom_vline(xintercept=bestmtry0, linetype="dashed") +
+  geom_point() +
+  geom_line() +
+  theme_light() +
+  labs(x="mtry value",
+       y="OOB Error",
+       title=paste0("The best mtry value for ", deparse(substitute(df_wy0_reduced)), " is ", bestmtry0))
+```
+
+```{r}
+mtry2 <- tune_rf_model(df_wy2_reduced)
+bestmtry2 <- match(min(mtry2), mtry2)
+
+ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
+  geom_vline(xintercept=bestmtry2, linetype="dashed") +
+  geom_point() +
+  geom_line() +
+  theme_light() +
+  labs(x="mtry value",
+       y="OOB Error",
+       title=paste0("The best mtry value for ", deparse(substitute(df_wy2_reduced)), " is ", bestmtry2))
 ```
 
 ### Random Forest Models
@@ -319,6 +361,7 @@ set.seed(4326)
 # Random Forest package with replace=FALSE
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
+                       mtry=bestmtry0,
                        replace=TRUE,
                        importance=TRUE,
                        keep.forest=TRUE,
@@ -328,6 +371,7 @@ set.seed(4326)
 # Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
+                       mtry=bestmtry2,
                        replace=TRUE,
                        importance=TRUE,
                        keep.forest=TRUE,
@@ -355,10 +399,10 @@ rf_wy0
 ```
 
 ```{r}
-rf.crossValidation(x=rf_wy0,
-                   xdata=allpredictors.df_wy0_reduced,
-                   p=0.1,
-                   n=10)
+allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
+
+cv <- rf.crossValidation(x=rf_wy0, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
+cv
 ```
 
 ```{r}
