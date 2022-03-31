@@ -77,21 +77,50 @@ df_wy <- df %>%
   mutate(aspect=aspect*(180/pi),
          slope=slope*(180/pi))
 
-# Create features for each monthly average temp.
+# Group by chosen columns
 df_wy <- df_wy %>%   
-  group_by(across(all_of(group_cols))) %>% 
-  mutate(jan_tavg = mean(tavg[month == 1]),
-         feb_tavg = mean(tavg[month == 2]),
-         mar_tavg = mean(tavg[month == 3]),
-         apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5]),
-         jun_tavg = mean(tavg[month == 6]),
-         jul_tavg = mean(tavg[month == 7]),
-         aug_tavg = mean(tavg[month == 8]),
-         sep_tavg = mean(tavg[month == 9]),
-         oct_tavg = mean(tavg[month == 10]),
-         nov_tavg = mean(tavg[month == 11]),
-         dec_tavg = mean(tavg[month == 12]))
+  group_by(across(all_of(group_cols)))
+```
+
+```{r aggregate_temp_function}
+aggregate_temp <- function(df,
+                           resolution='season',
+                           winter=c(12, 1, 2, 3),
+                           spring=c(4, 5),
+                           summer=c(6, 7, 8, 9),
+                           fall=c(10, 11)) {
+  
+  if (resolution == 'month') {
+  
+  months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
+    
+    for (i in seq_along(months)) {
+      column_name <- paste0(months[i], '_tavg')
+      df_temp_agg[[column_name]] <- mean(df_temp_agg$tavg[df_temp_agg$month == i])
+    }
+  }
+  
+  if (resolution == 'season') {
+    
+    if (missing(winter | spring | summer | fall)) {
+      warning("If the season arguments are left blank, this function defaults to 
+              winter=c(12, 1, 2, 3), spring=c(4, 5), summer=c(6, 7, 8, 9), fall=c(10, 11)")
+    }
+    
+    df_temp_agg <- df %>%
+      mutate(winter_tavg = mean(tavg[month %in% (winter)]),
+             spring_tavg = mean(tavg[month %in% (spring)]),
+             summer_tavg = mean(tavg[month %in% (summer)]),
+             fall_tavg = mean(tavg[month %in% (fall)])) 
+  }
+  
+  return(df_temp_agg)
+}
+```
+
+```{r prepare data cont.}
+# Aggregate average temperatures
+df_wy <- aggreagte_temp(df_wy, 'season')
 
 # Create features for peak swe and the peak_swe/precip ratio
 df_wy <- df_wy %>% 
@@ -481,6 +510,7 @@ df2_pred_binned <- df_wy2 %>%
          pred2 = df_wy2[[pred2_clim2]]) %>% 
   mutate(bin = as.numeric(ntile(pred2, 4)))
 ```
+
 
 ```{r}
 ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
