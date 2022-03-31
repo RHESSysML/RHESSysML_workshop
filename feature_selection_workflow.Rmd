@@ -650,6 +650,20 @@ plot_min_depth_distribution(min_depth_frame,
                             mean_sample="relevant_trees")
 ```
 
+Lastly, SHAP values allow visualization of the direction of these relationships.
+
+```{r}
+library(fastshap)
+
+explain0 <- explain(object=rf_wy0,
+                    X=subset(df_wy0_reduced, select=-npp),
+                    pred_wrapper=predict)
+
+autoplot(explain0, type="contribution", feature="npp")
+```
+
+## 
+
 # References
 
 Cutler, D. Richard, Thomas C. Edwards, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. 2007. "Random Forests for Classification in Ecology." *Ecology* 88 (11): 2783--92. <https://doi.org/10.1890/07-0539.1>.
