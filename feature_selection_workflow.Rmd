@@ -36,6 +36,7 @@ library(party)
 library(partykit)
 library(permimp)
 library(rfUtilities)
+library(randomForestExplainer)
 ```
 
 # Data Preparation
@@ -153,6 +154,8 @@ Next, we want to get a summary description of the data set. This is crucial for 
 
 2.  Provides information on data set characteristics that are important for decisions later on in the machine learning process.
 
+Here, we display summary statistics for the base climate scenario data.
+
 ```{r describe_data}
 summarize_data <- function(df) {
   df_name <- deparse(substitute(df))
@@ -166,7 +169,7 @@ summarize_data <- function(df) {
 }
 
 summarize_data(df_wy0)
-summarize_data(df_wy2)
+#summarize_data(df_wy2)
 ```
 
 We can also look at the key study area characteristics. In this study, there are six study areas.
@@ -217,11 +220,11 @@ allpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)]
 factorpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(where(is.factor))
 ```
 
-Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity ([Source](##%20Reference:%20https://gist.github.com/BlasBenito/768a45951a3d0c5ba355f52be94b05de)). In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their **relative** importance should be accurate.
+Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their relative importance should be reasonably accurate.
 
 **Do we want to do this preliminary imp process for clim 2 as well?**
 
-```{r create_correlation_function}
+```{r}
 # First climate scenario
 
 # Find preliminary importance using random forest
@@ -230,14 +233,32 @@ imp <- rf(data=df_wy,
           predictor.variable.names=colnames(allpredictors.df_wy0),
           verbose=FALSE)
 
-# Set preference order based on variable importance.
+# Set preference order based on variable importance
 preference.order <- imp$importance$per.variable$variable
 
 # Preference order can be determined manually for variables of interest:
 #preference.order <- c("precip", "rz_storage", "trans", "evap")
 ```
 
-```{r}
+```{r find_preference_order}
+# First climate scenario
+
+# Find preliminary importance using random forest
+imp0 <- randomForest(formula=npp~.,
+                     data=df_wy0,
+                     replace=TRUE,
+                     importance=TRUE,
+                     keep.forest=TRUE,
+                     keep.inbag=TRUE)
+
+# Set preference order based on variable importance
+preference.order <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
+
+# Preference order can be determined manually for variables of interest:
+#preference.order <- c("precip", "rz_storage", "trans", "evap")
+```
+
+```{r create_correlation_functions}
 # Remove variables based on VIF and Correlation thresholds
 remove_vif <- function(predictors.df, vif.threshold=5) {
   variable.selection <- auto_vif(x=predictors.df,
@@ -256,9 +277,7 @@ remove_cor <- function(predictors.df, cor.threshold=0.75) {
 }
 ```
 
-Thresholds for VIF and correlation can be set using the function below. For information on how to select appropriate thresholds, see here (ADD SOURCE)
-
-TO DO: ADD SOURCE FOR SELECTING THRESHOLDS
+Thresholds for VIF and correlation can be set using the function below, with default values of 5 and 0.75, respectively.
 
 ```{r remove_multicollinearity, warning=FALSE}
 # Create list of selected variables
@@ -328,7 +347,9 @@ Now, the data frames are adequately prepared to determine predictor feature impo
 
 ### Hyper-Parameter Tuning
 
-```{r}
+A primary advantage of using a random forest model is that there is relatively little hyper-parameter tuning needed. Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
+
+```{r tune_mtry_function}
 set.seed(4326)
 
 df_wy0_reduced <- as.data.frame(df_wy0_reduced)
@@ -353,7 +374,7 @@ tune_rf_model <- function(df) {
 }
 ```
 
-```{r}
+```{r tune_rf_wy0}
 mtry0 <- tune_rf_model(df_wy0_reduced)
 bestmtry0 <- match(min(mtry0), mtry0)
 
@@ -367,7 +388,7 @@ ggplot(data=as.data.frame(mtry0), aes(x=1:length(mtry0), y=mtry0)) +
        title=paste0("The best mtry value for ", deparse(substitute(df_wy0_reduced)), " is ", bestmtry0))
 ```
 
-```{r}
+```{r tune_rf_wy2}
 mtry2 <- tune_rf_model(df_wy2_reduced)
 bestmtry2 <- match(min(mtry2), mtry2)
 
@@ -385,7 +406,6 @@ ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
 
 ```{r get_random_forests}
 set.seed(4326)
-# Random Forest package with replace=FALSE
 rf_wy0 <- randomForest(formula=npp~.,
                        data=df_wy0_reduced,
                        mtry=bestmtry0,
@@ -395,7 +415,6 @@ rf_wy0 <- randomForest(formula=npp~.,
                        keep.inbag=TRUE)
 
 set.seed(4326)
-# Random Forest package with replace=FALSE
 rf_wy2 <- randomForest(formula=npp~.,
                        data=df_wy2_reduced,
                        mtry=bestmtry2,
@@ -413,51 +432,42 @@ imp_wy0 <- permimp(rf_wy0, do_check=FALSE, progressBar=FALSE)
 imp_wy2 <- permimp(rf_wy2, do_check=FALSE, progressBar=FALSE)
 ```
 
-TO DO: ADD CROSS VALIDATION (10-Fold) (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6049094/>)
-
 # Model Evaluation
 
 The following section provides visualizations and statistics to evaluate the random forest performance.
 
-First, simply calling the random forest shows the percent variance explained.
+First, simply calling the random forest shows a summary of the results, including percent variance explained.
 
 ```{r}
 rf_wy0
 ```
 
+The model for the base climate scenario explained 90.34% of variance in NPP.
+
+```{r}
+rf_wy2
+```
+
+The model for the +2 degree Celsius climate scenario explained 88.05% of variance in NPP.
+
+Next, we can implement a permutation test cross-validation for the random forest models.
+
 ```{r}
 allpredictors.df_wy0_reduced <- df_wy0_reduced[,(num_response+1):ncol(df_wy0_reduced)]
 
-cv <- rf.crossValidation(x=rf_wy0, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
-cv
+rf.crossValidation(x=rf_wy0, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
+
 ```
+
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains 89.68% of the variance in NPP. This result is 0.66% lower than our original fit % explained.
 
 ```{r}
-bivariate.partialDependence(x=rf_wy0,
-                            pred.data=allpredictors.df_wy0_reduced,
-                            v1="lai",
-                            v2="peak_swe",
-                            grid.size=15,
-                            col.ramp=c("orange", "green"),
-                            ncols=20)
+allpredictors.df_wy2_reduced <- df_wy2_reduced[,(num_response+1):ncol(df_wy2_reduced)]
+
+rf.crossValidation(x=rf_wy2, xdata=allpredictors.df_wy2_reduced, p=0.1, n=10)
 ```
 
-```{r}
-varImpPlot(rf_wy0)
-```
-
-```{r}
-library(randomForestExplainer)
-
-min_depth_frame <- min_depth_distribution(rf_wy0)
-
-plot_min_depth_distribution(min_depth_frame,
-                            mean_sample="relevant_trees")
-```
-
-```{r}
-plot_predict_interaction(rf_wy0, df_wy0_reduced, "rz_storage", "precip")
-```
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains 86.99% of the variance in NPP. This result is 1.06% lower than our original fit % explained.
 
 # Visualize Results
 
@@ -475,18 +485,18 @@ imp_to_table <- function(imp) {
 df_imp_wy0 <- imp_to_table(imp_wy0)
 df_imp_wy2 <- imp_to_table(imp_wy2)
 
-rank_importance <- function(df_imp) {
-  df_name <- deparse(substitute(df_imp))
-  df_imp_wy0 %>% 
-  select(Variable, Rank) %>% 
-  arrange(Rank) %>% 
-  kable(align="r",
-        caption=paste0("Variable importance rank for ", df_name)) %>% 
-  kable_styling(bootstrap_options = c("striped", "hover"))
-}
-
-rank_importance(df_imp_wy0)
-rank_importance(df_imp_wy2)
+# rank_importance <- function(df_imp) {
+#   df_name <- deparse(substitute(df_imp))
+#   df_imp_wy0 %>% 
+#   select(Variable, Rank) %>% 
+#   arrange(Rank) %>% 
+#   kable(align="r",
+#         caption=paste0("Variable importance rank for ", df_name)) %>% 
+#   kable_styling(bootstrap_options = c("striped", "hover"))
+# }
+# 
+# rank_importance(df_imp_wy0)
+# rank_importance(df_imp_wy2)
 ```
 
 The following table shows the relative importance of predictor variables between the two climate scenarios.
@@ -510,15 +520,19 @@ df_imp %>%
                                   ifelse(df_imp$Diff==0, "grey", "red"))))
 ```
 
+We see that precipitation and rz_storage are the first and second most important predictors of NPP for both climate scenarios. The highest difference is evaporation - which is third important for the base climate scenario and sixth for the +2 degree Celsius warming scenario. This indicates that the relationship between NPP and evaporation has changed given warming, which could be investigated further. This process can be repeated for all other observations found in the table.
+
+This same information can be plotted below. The variable importance plots also reveal relative magnitude of importance between variables. Note that this is somewhat of an artifact of the mechanics of a random forests model on not necessarily reflective of the actual relative importance of these variables in the natural world.
+
 ```{r plot_imp}
 plot_imp <- function(imp_df) {
   df_name <- deparse(substitute(imp_df))
-  ggplot(data=imp_df, aes(x=Importance, y=reorder(Variable, Importance), fill=Variable)) +
+  ggplot(data=imp_df, aes(x=Importance, y=reorder(Variable, Importance))) +
     geom_col() +
     theme_light() +
     theme(legend.position = "none",
           axis.text.x = element_blank()) +
-    labs(title=paste0("Variable Importance for ", df_name),
+    labs(title=paste0("Variable Importance for \n", df_name),
          x="Importance",
          y="Variable")
 }
@@ -526,19 +540,21 @@ plot_imp <- function(imp_df) {
 wy0_plot <- plot_imp(df_imp_wy0)
 wy2_plot <- plot_imp(df_imp_wy2)
 
-wy0_plot
-wy2_plot
+wy0_plot + wy2_plot 
 ```
 
 ## Previewing relationships between important predictors and NPP
 
-```{r}
+The variable importance values derived from our random forest model allow us to investigate intriguing relationships between variables that have been identified as having greater importance.
+
+Here, we investigate the relationships of some of the most important identified variables with NPP as well as their interactions.
+
+```{r message=FALSE}
 # assigning first and second most important variables to objects
 pred1_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 1]
 pred2_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 2]
-pred1_clim2 <- df_imp_wy0$Variable[df_imp_wy2$Rank == 1]
-pred2_clim2 <- df_imp_wy0$Variable[df_imp_wy2$Rank == 2]
-
+pred1_clim2 <- df_imp_wy2$Variable[df_imp_wy2$Rank == 1]
+pred2_clim2 <- df_imp_wy2$Variable[df_imp_wy2$Rank == 2]
 
 df0_pred_binned <- df_wy0 %>% 
   select(pred1_clim0, pred2_clim0, response_var) %>% 
@@ -582,11 +598,58 @@ ggplot(df2_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
   theme_minimal()
 ```
 
-TO DO: INCLUDE MORE VISUALIZATIONS, INCLUDING CV RESULTS, PLOTS OF IMPORTANT VARIABLE RELATIONSHIPS, ETC.
+Variable interactions can be investigated in many ways. The bivariate partial dependence plot below provides a graphical depiction of the marginal effect of two variables on predicted NPP from the random forest model.
 
-TO DO: INCLUDE VISUALIZATIONS COMPARING RF MODELS, DIFFERENT IMPORTANCE MEASURES
+```{r}
+bivariate.partialDependence(x=rf_wy0,
+                            pred.data=allpredictors.df_wy0_reduced,
+                            v1="lai",
+                            v2="peak_swe",
+                            grid.size=15,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
+```
 
-OVERALL TO DO: TEST, CHECK, AND CORRECT ALL INCORRECT ASSUMPTIONS, CHOICES, ETC. THAT LEAD TO INCORRECT RESULTS OR UNDESIRABLE WORKFLOW
+Running this plot for both data sets can demonstrate how variable interactions shift given different climate scenarios.
+
+```{r}
+bivariate.partialDependence(x=rf_wy2,
+                            pred.data=allpredictors.df_wy2_reduced,
+                            v1="lai",
+                            v2="peak_swe",
+                            grid.size=15,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
+```
+
+Variable interactions between two predictors and the corresponding NPP predictions from the random forest model can be displayed as a grid of values.
+
+Below, the x-axis represents values of `rz_storage` , y-axis represents values of `precip` , and the cell colors/values represent predicted values of `npp` , with red indicating high and blue indicating low. For this interaction, we can see that high values of precipitation and root-zone storage result in higher predictions of NPP. This is only true for root zone storage given high precipitation, while high precipitation at all levels of root zone storage predicts relatively higher NPP. This is another indicator that it is an important predictor.
+
+```{r}
+plot_predict_interaction(rf_wy0, df_wy0_reduced, 
+                         "rz_storage", "precip",
+                         grid=50) # smaller grid values reveal more general relationships
+```
+
+## Comparison with other measures of importance
+
+The capstone team chose to use conditional permutation importance above as our main representation of importance. However there are other potential methods of determining relative importance from random forest models that are demonstrated below. Note that the interpretation of these measures, as discussed in the original justification of using the `permimp` package, is limited due to characteristics of RHESSys data. Namely, the presence of both categorical and continuous variables, differing number of classes in categorical variables, differing scales of numeric variables, and potential remaining multicollinearity all have greater potential to skew the results of the methods below.
+
+The plot below presents the top 10 variables using % mean decrease in accuracy (%IncMSE) and mean decrease in node impurity (IncNodePurity). %IncMSE is computed from permuting the out-of-bag data, while IncNodePurity is the mean total decrease in node impurities from splitting on the given variable, as measured by the residual sum of squares.
+
+```{r}
+varImpPlot(rf_wy0, n.var=10)
+```
+
+The plot below visualizes the distribution of minimum depth from the random forest model. Low values, such as for precipitation below, indicate that many observations are divided into groups based on that variable.
+
+```{r}
+min_depth_frame <- min_depth_distribution(rf_wy0)
+
+plot_min_depth_distribution(min_depth_frame,
+                            mean_sample="relevant_trees")
+```
 
 # References
 
