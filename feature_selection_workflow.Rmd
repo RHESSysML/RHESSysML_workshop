@@ -101,12 +101,7 @@ aggregate_temp <- function(df,
   }
   
   if (resolution == 'season') {
-    
-    if (missing(winter | spring | summer | fall)) {
-      warning("If the season arguments are left blank, this function defaults to 
-              winter=c(12, 1, 2, 3), spring=c(4, 5), summer=c(6, 7, 8, 9), fall=c(10, 11)")
-    }
-    
+
     df_temp_agg <- df %>%
       mutate(winter_tavg = mean(tavg[month %in% (winter)]),
              spring_tavg = mean(tavg[month %in% (spring)]),
@@ -115,6 +110,9 @@ aggregate_temp <- function(df,
   }
   
   return(df_temp_agg)
+  
+  warning("If the season arguments are left blank, this function defaults to 
+        winter=c(12, 1, 2, 3), spring=c(4, 5), summer=c(6, 7, 8, 9), fall=c(10, 11)")
 }
 ```
 
