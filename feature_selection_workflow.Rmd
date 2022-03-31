@@ -549,24 +549,29 @@ The variable importance values derived from our random forest model allow us to 
 
 Here, we investigate the relationships of some of the most important identified variables with NPP as well as their interactions.
 
-```{r message=FALSE}
+```{r}
+get_important_predictors <- function(df_imp, rank) {
+  df_imp$Variable[df_imp$Rank == rank]
+}
+
 # assigning first and second most important variables to objects
-pred1_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 1]
-pred2_clim0 <- df_imp_wy0$Variable[df_imp_wy0$Rank == 2]
-pred1_clim2 <- df_imp_wy2$Variable[df_imp_wy2$Rank == 1]
-pred2_clim2 <- df_imp_wy2$Variable[df_imp_wy2$Rank == 2]
+pred1_clim0 <- get_important_predictors(df_imp_wy0, 1)
+pred2_clim0 <- get_important_predictors(df_imp_wy0, 2)
+pred1_clim2 <- get_important_predictors(df_imp_wy2, 1)
+pred2_clim2 <- get_important_predictors(df_imp_wy2, 2)
 
-df0_pred_binned <- df_wy0 %>% 
-  select(pred1_clim0, pred2_clim0, response_var) %>% 
-  mutate(pred1 = df_wy0[[pred1_clim0]],
-         pred2 = df_wy0[[pred2_clim0]]) %>% 
+create_binned_df <- function(df_wy) {
+  df_pred_binned <- df_wy %>% 
+  select(all_of(pred1_clim0), all_of(pred2_clim0), all_of(response_var)) %>%
+  mutate(pred1 = df_wy[[pred1_clim0]],
+         pred2 = df_wy[[pred2_clim0]]) %>% 
   mutate(bin = as.numeric(ntile(pred2, 4)))
+  
+  return(df_pred_binned)
+}
 
-df2_pred_binned <- df_wy2 %>% 
-  select(pred1_clim2, pred2_clim2, response_var) %>% 
-  mutate(pred1 = df_wy2[[pred1_clim2]],
-         pred2 = df_wy2[[pred2_clim2]]) %>% 
-  mutate(bin = as.numeric(ntile(pred2, 4)))
+df0_pred_binned <- create_binned_df(df_wy0)
+df2_pred_binned <- create_binned_df(df_wy2)
 ```
 
 ```{r}
@@ -578,23 +583,31 @@ ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
                      "in 0 degree climate scenario")) +
   theme_minimal()
 
-ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_wrap("bin") +
-  labs(x = str_to_title(pred1_clim0), y = response_var,
-       title = paste(pred1_clim0, "vs", response_var, "given different value classes of",
-                     pred2_clim0, "\n in 0 degree climate scenario")) +
-  theme_minimal()
+create_binned_plot <- function(df_binned) {
+  df_name <- deparse(substitute(df_binned))
+  if (df_name == "df0_pred_binned") {
+    p1 = pred1_clim0
+    p2 = pred2_clim0
+    scen = "0"
+  }
+  if (df_name == "df2_pred_binned") {
+    p1 = pred1_clim2
+    p2 = pred2_clim2
+    scen = "2"
+  }
+  
+  ggplot(df_binned, aes(x = pred1, y = .data[[response_var]])) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    facet_wrap("bin") +
+    labs(x = str_to_title(pred1_clim0), y = response_var,
+         title = paste(p1, "vs", response_var, "given different value classes of",
+                       p2, "\n in", scen, "degree climate scenario")) +
+    theme_minimal()
+}
 
-ggplot(df2_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_wrap("bin") +
-  labs(x = str_to_title(pred1_clim2), y = response_var,
-       title = paste(pred1_clim0, "vs", response_var, "given different value classes of",
-                     pred2_clim0, "\n in 2 degree climate scenario")) +
-  theme_minimal()
+create_binned_plot(df0_pred_binned)
+create_binned_plot(df2_pred_binned)
 ```
 
 Variable interactions can be investigated in many ways. The bivariate partial dependence plot below provides a graphical depiction of the marginal effect of two variables on predicted NPP from the random forest model.
