@@ -2,7 +2,9 @@
 title: "Gradient Boosting"
 author: "Shale"
 date: "2/15/2022"
-output: html_document
+output: 
+  rmarkdown::html_document:
+    theme: cerulean
 ---
 
 **Currently just taking sections of code from the feature selection .Rmd and trying the same stuff with Gradient Boosting to try and identify differences**
@@ -27,6 +29,7 @@ library(caTools)
 library(DiagrammeR)
 
 options(scipen = 5)
+set.seed(101)
 ```
 
 # Data Preparation
@@ -90,7 +93,6 @@ df_wy2 <- df_wy %>%
 The `xgboost` package requires a numeric matrix as input, so factor variables (`topo`, `scen`, `stratumID`) need to be converted to numeric:
 
 ```{r matrix_setup}
-set.seed(10)
 
 npp_lab <- df_wy$npp
 
@@ -124,18 +126,26 @@ xgb_matrix_test_x <- test_set %>%
 
 ```
 
+```{r Cross-validation, message=FALSE}
+# Using the caret package to do 10-fold cross-validation
+train_control = caret::trainControl(method = "cv", number = 10)
+
+xg_model_caret = train(npp~., data = df_wy, method = "xgbTree", trControl = train_control)
+```
+
+
 ## Gradient Boosting Model
 
-### Specify hyperparameters
+### Specify hyperparameters 
 
-Detailed description of parameters:
+Detailed description of parameters: 
 https://xgboost.readthedocs.io/en/stable/parameter.html
 
-Parameter tuning guidelines:
-https://xgboost.readthedocs.io/en/latest/tutorials/param_tuning.html
+Parameter tuning guidelines: 
+https://xgboost.readthedocs.io/en/latest/tutorials/param_tuning.html 
 **This document begins with the sentence: "Parameter tuning is a dark art in machine learning."** 
-In Python: https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
-From Kaggle: https://www.kaggle.com/prashant111/a-guide-on-xgboost-hyperparameters-tuning
+In Python: https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/ 
+From Kaggle: https://www.kaggle.com/prashant111/a-guide-on-xgboost-hyperparameters-tuning 
 
 ```{r}
 xgb_params <- list(
@@ -164,10 +174,11 @@ xgb_model
 xgb_preds <- as.data.frame(predict(xgb_model, xgb_matrix_test_x, reshape = TRUE))
 xgb_pred_df <- xgb_preds %>% 
   mutate(RHESSYS_npp = npp_test)
-xgb_preds
+
 ```
 # Visualize
 
+## XGBoost Package
 ```{r}
 xgb_imp <- xgb.importance(model = xgb_model)
 
@@ -186,9 +197,27 @@ train_data <- train_set %>%
 
 xgb.plot.shap.summary(data = train_data, model = xgb_model)
 ```
+
 ```{r}
 xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
 
 
+```
+
+## Caret Package
+
+```{r}
+c_imp = varImp(xg_model_caret, scale = FALSE)
+list_imp = c_imp$importance
+list_imp = list_imp %>% mutate(variable = row.names(list_imp)) %>% 
+  filter(list_imp$Overall != 0)
+
+ggplot(data = list_imp, aes(x=Overall, y=variable)) + geom_col()
+```
+
+Can see that we are getting different top 3 between `xgboost` and `caret`, even within gradient boosting. Need to check stuff like defaults (gamma value? dealing with categoricals is clearly different? Also did 10-fold with caret but not with xgb.)
+
+```{r}
+plot(c_imp, top = 15)
 ```
 
