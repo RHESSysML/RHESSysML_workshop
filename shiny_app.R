@@ -1,0 +1,163 @@
+########################## RHESSysML Shiny App for Sagehen Creek
+
+########## Attach Packages
+library(shiny)
+library(tidyverse)
+library(here)
+library(patchwork)
+library(psych)
+library(kableExtra)
+library(shinythemes)
+library(lubridate)
+
+#options(scipen=999)
+
+########## Set the working directory
+setwd(here())
+
+########## User Inputs
+factor_vars <- c("stratumID", "scen", "topo")
+response_var <- "npp"
+
+########## Get the datasets from the feature importance workflow
+
+# Main aggregated dataset
+df_wy <- read.csv(here("aggregated_datasets", "df_wy.csv"))
+# Aggregated dataset for climate scenario 0
+df_wy0 <- read.csv(here("aggregated_datasets", "df_wy0.csv"))
+# Aggregated dataset for climate scenario 2
+df_wy2 <- read.csv(here("aggregated_datasets", "df_wy2.csv"))
+
+# Convert categorical variables to factors
+df_wy[,factor_vars] <- lapply(df_wy[,factor_vars], factor)
+df_wy$clim <- as.factor(df_wy$clim)
+df_wy0[,factor_vars] <- lapply(df_wy0[,factor_vars], factor)
+df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
+
+######### Text for the welcome page
+
+welcome <- "Welcome to the RHESSys Interpretation App. Use this app to explore your RHESSys output data."
+
+intro_1 <- "- The \"Variable Importance\" tab will display the output from our machine learning workflows. If you have not gone through the machine learning workflows, we recommend doing that first. They can be found on the RHESSys Github Wiki." 
+
+intro_2 <- "- The \"Visualizations\" tab will allow you explore your data's variables and their relationships." 
+intro_3 <- "- Use the \"Metadata\" tab to learn more about each variable within your dataset."
+
+importance_caption <- "The above graphs uses the random forest workflow to rank how important each varible is in predicting your responce variable, in this case Net Primary Productivity. The graph on the left ranks the variables in a normal climate scenario, and the graph on the right ranks the variables in a +2 degree C cliamte warming scenario."
+
+########## Inputs
+
+stratum_sel <- checkboxGroupInput("stratum_sel",
+                                  label = tags$h4("Select desired stratum to look at:"),
+                                  choices = unique(df_wy$stratumID),
+                                  selected = unique(df_wy$stratumID))
+
+topo_sel <- checkboxGroupInput("topo_sel",
+                               label = tags$h4("Select topography types to look at:"),
+                               choices = c("Upslope" = "U",
+                                           "Mid-slope" = "M",
+                                           "Riparian" = "R"),
+                               selected = c("Upslope" = "U",
+                                            "Mid-slope" = "M",
+                                            "Riparian" = "R"))
+
+clim_sel <- checkboxGroupInput("clim_sel",
+                               label = tags$h4("Select your climate scenario(s):"),
+                               choices = c("Normal Scenario" = 0,
+                                           "+2 Degree C Scenario" = 2),
+                               selected = c("Normal Scenario" = 0,
+                                            "+2 Degree C Scenario" = 2))
+
+wy_sel <- sliderInput("wy_sel",
+                      label = tags$h4("Select water year range:"),
+                      min = min(df_wy$wy),
+                      max = max(df_wy$wy),
+                      value = c(min(df_wy$wy), max(df_wy$wy)))
+
+dependent_variable <- varSelectInput(inputId = "dependent_variable",
+                                    label = tags$h4("Select your dependent variable:"),
+                                    data = df_wy,
+                                    selected = "npp")
+
+independent_variable <- varSelectInput(inputId = "independent_variable",
+                                       label = tags$h4("Select your independent variable:"),
+                                       data = df_wy,
+                                       selected = "precip")
+
+facet_variable <- varSelectInput(inputId = "facet_variable",
+                                 label = tags$h4("Select variable to facet by:"),
+                                 data = df_wy,
+                                 selected = "rz_storage")
+
+quantile_slider <- sliderInput("quantile_sel",
+                               label = tags$h4("How many quantiles to facet?"),
+                               min = 1,
+                               max = 10,
+                               value = 1)
+
+########## Create UI
+ui <- fluidPage(
+  
+  theme = shinytheme("superhero"),
+  
+  tags$h1("RHESSys Output Exploration"),
+  
+  navbarPage("Explore your dataset!",
+             tabPanel("Welcome!",
+                      tags$h2(welcome),
+                      tags$h2(intro_3),
+                      tags$h2(intro_1),
+                      tags$h2(intro_2),
+                      img(src = "RHESSys_logo_V2.png", height = 450, width = 450)),
+             tabPanel("Metadata",
+                      tags$h3("Explore the metadata:"),
+                      img(src = "metadata_screenshot.png", height = 900, width = 1100)),
+             tabPanel("Variable Importance",
+                      tags$h3("Random Forest Variable Importance Output:"),
+                      tags$h4("Your Responce Variable: Net Primary Productivity (NPP)"),
+                      img(src = "importance_plots.png", height = 800, width = 800),
+                      tags$h6(importance_caption)),
+             tabPanel("Visualizations",
+                      sidebarPanel(stratum_sel,
+                                   topo_sel,
+                                   clim_sel,
+                                   wy_sel,
+                                   "Varibles to Explore:",
+                                   dependent_variable,
+                                   independent_variable,
+                                   facet_variable,
+                                   quantile_slider),
+                      mainPanel("Visual Graph of your variable relationships:",
+                                plotOutput(outputId = "variable_plot", height = 700))),
+  )
+)
+
+########## Create a server
+server <- function(input, output) {
+  
+  # Create a reactive dataframe
+  df_wy_reactive <- reactive({
+    df_wy %>% 
+      mutate(quantile = paste0(ntile(!!input$facet_variable, input$quantile_sel), " Quantile")) %>% 
+      filter(stratumID %in% input$stratum_sel, 
+             topo %in% input$topo_sel,
+             clim %in% input$clim_sel,
+             wy %in% input$wy_sel[1]:input$wy_sel[2])
+  })
+  
+  output$variable_plot <- renderPlot({
+    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = !!input$dependent_variable)) +
+      geom_point(aes(color = clim)) +
+      geom_smooth(se = FALSE, method = lm, color = "#B251F1") +
+      scale_color_manual(values = c("0" = "#FEA346", 
+                                    "2" = "#4BA4A4")) +
+      labs(color = "Climate Scenario") +
+      facet_wrap(~ quantile, dir = "v") +
+      theme(text = element_text(size = 17))
+  })
+  
+}
+
+########## Let R know that you want to combine UI and server into an app
+shinyApp(ui = ui, server = server)
+
