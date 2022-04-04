@@ -1,0 +1,102 @@
+---
+title: "metadata"
+author: "RHESSysML"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+```
+
+This R markdown file holds all of the metadata for RHESSys output data. If your dataset has variables that aren't included in the metadata, add them here with a full name and a description! 
+
+```{r}
+# This creates the initial metadata dataframe.
+metadata <- data.frame(
+  stringsAsFactors = FALSE,
+          variable = c("npp","wy","stratumID",
+                       "clim","scen","topo","lai","height","plantc","cpool",
+                       "swe","precip","trans","evap","sat_deficit",
+                       "rz_storage","tmax","tmin","aspect","slope","elev",
+                       "winter_tavg","spring_tavg","summer_tavg","fall_tavg",
+                       "peak_swe","swe_precip_ratio"),
+         full_name = c("Net Primary Productivity",
+                       "Water Year","Stratum Identification Number",
+                       "Climte Scenario","Uncertainty Scenario","Topography Type",
+                       "Leaf Area Index","Tree Height","Total Plant Carbon",
+                       "Non-Structural Carbohydrate Pool","Snow Water Equivalent",
+                       "Precipitation","Transpiration","Evaporation",
+                       "Soil Moisture Saturation Deficit","Root-Zone Soil Moisture Storage",
+                       "Maximum Daily Tempurature","Minimum Daily Tempurature",
+                       "Aspect","Slope","Elevation",
+                       "Average Winter Tempurature","Average Spring Tempurature",
+                       "Average Summer Tempurature","Average Fall Tempurature",
+                       "Peak Snow Water Equivalent",
+                       "Snow Water Equivalent and Precipitation Ratio"),
+       description = c("Net Primary Productivity (kg C / m^2)","Water Year - October 1st to September 30th",
+                       "The strata identification number for each stratum within the watershed",
+                       "Climate Change Variable - \"0\" indicates baseline climate, \"2\" indicates +2 deg C of climate warming",
+                       "Scenario - 1-10 indicates parameter uncertainty (6-10 refer to same parameter sets as 1-5, only difference is climate)",
+                       "Topographic Position - \"R\" (Riparian), \"U\" (Upslope), or \"M\" (Mid-slope)",
+                       "Leaf Area Index (-)","Tree Height (m)",
+                       "Total Plant Carbon (kg C / m^2)","Non-Structural Carbohydate Pool (kg C / m^2)",
+                       "Snow Water Equivalent (m)","Precipitation (m)",
+                       "Transpiration (m/day)","Evaporation (m/day)",
+                       "Soil Moisture Saturation Deficit (m)","Root-Zone Soil Moisture Storage (m)",
+                       "Maximum Daily Temperature (deg C)",
+                       "Minimum Daily Temperature (deg C)","Aspect (degrees CCW from east)",
+                       "Slope (degrees)","Elevation (m.a.s.l.)",
+                       "Average tempuratuve for the winter, which are months 12, 1, 2 and 3 by default.",
+                       "Average tempuratuve for the spring, which are months 4 and 5 by default.",
+                       "Average tempuratuve for the summer, which are months 6, 7, 8 and 9 by default.",
+                       "Average tempuratuve for the fall, which are months 10 and 11 by default.",
+                       "The highest snow water equivalent level for that water year.",
+                       "The ratio between snow water equivalent and precipitation.")
+)
+```
+
+These functions allow you to add or remove variables from the metadata data frame.
+
+```{r}
+add_variable <- function(variable, full_name, description) {
+  metadata <- add_row(metadata, variable = variable, full_name = full_name, description = description)
+  return(metadata)
+}
+
+remove_variable <- function(var) {
+  metadata <- subset(metadata, variable != var & full_name != var)
+  return(metadata)
+}
+```
+
+Here are some examples of how to use the above functions.
+
+```{r}
+# Add a row to the metadata. Provide the variable, its full name, and its description in quotes.
+metadata <- add_variable("test_var", "test_name", "test_desc")
+
+# Remove a row from the metadata. Provide the variable as it appears in
+metadata <- remove_variable("test_name")
+```
+
+Organize the metadata by alphabetical order
+
+```{r}
+metadata <- arrange(metadata, variable)
+```
+
+Save the metadata dataframe as a csv file to be used in the shiny app.
+
+```{r}
+write.csv(metadata, file = here("data", "metadata.csv"))
+```
+
+
+
+
+
+
+
