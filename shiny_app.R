@@ -34,6 +34,12 @@ df_wy$clim <- as.factor(df_wy$clim)
 df_wy0[,factor_vars] <- lapply(df_wy0[,factor_vars], factor)
 df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 
+######### Import the metadata and create a table out of it
+
+metadata <- read.csv(here("data", "metadata.csv"))
+metadata_table <- kable(metadata) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
 ######### Text for the welcome page
 
 welcome <- "Welcome to the RHESSys Interpretation App. Use this app to explore your RHESSys output data."
@@ -111,7 +117,7 @@ ui <- fluidPage(
                       img(src = "RHESSys_logo_V2.png", height = 450, width = 450)),
              tabPanel("Metadata",
                       tags$h3("Explore the metadata:"),
-                      img(src = "metadata_screenshot.png", height = 900, width = 1100)),
+                      htmlOutput("metadata_kable")),
              tabPanel("Variable Importance",
                       tags$h3("Random Forest Variable Importance Output:"),
                       tags$h4("Your Responce Variable: Net Primary Productivity (NPP)"),
@@ -154,6 +160,11 @@ server <- function(input, output) {
       labs(color = "Climate Scenario") +
       facet_wrap(~ quantile, dir = "v") +
       theme(text = element_text(size = 17))
+  })
+  
+  output$metadata_kable <- renderText({
+    kable(metadata) %>% 
+      kable_styling(bootstrap_options = c("striped", "hover"))
   })
   
 }
