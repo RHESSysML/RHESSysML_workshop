@@ -167,6 +167,15 @@ df_wy2 <- df_wy %>%
 
 Now, we have two data tables representing the two climate scenarios.
 
+Here we'll save the newly aggregated datesets to be automatically uploaded to the Shiny App.
+
+```{r}
+write.csv(df_wy, file = here("aggregated_datasets", "df_wy.csv"), row.names = FALSE)
+write.csv(df_wy0, file = here("aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
+write.csv(df_wy2, file = here("aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
+```
+
+
 # Data Description
 
 Next, we want to get a summary description of the data set. This is crucial for many reasons:
@@ -571,6 +580,15 @@ wy2_plot <- plot_imp(df_imp_wy2)
 
 wy0_plot + wy2_plot 
 ```
+
+Let's save the above importance plots to be used in the Shiny App.
+
+```{r, include = FALSE}
+importance_plots <- wy0_plot + wy2_plot 
+ggsave(importance_plots, filename = "importance_plots.png", path = here("www"))
+```
+
+
 
 ## Previewing relationships between important predictors and NPP
 

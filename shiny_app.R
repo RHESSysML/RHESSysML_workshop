@@ -1,6 +1,6 @@
-# RHESSysML Shiny App for Sagehen Creek
+########################## RHESSysML Shiny App for Sagehen Creek
 
-# Attach Packages
+########## Attach Packages
 library(shiny)
 library(tidyverse)
 library(here)
@@ -12,62 +12,29 @@ library(lubridate)
 
 #options(scipen=999)
 
-# Set the working directory
+########## Set the working directory
 setwd(here())
 
-# Read in the dataset
-df <- read.csv(here("data", "sageres.csv"))
-
-### User Inputs
-group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
-factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
+########## User Inputs
+factor_vars <- c("stratumID", "scen", "topo")
 response_var <- "npp"
 
-## Convert categorical variables to factors
-df[,factor_vars] <- lapply(df[,factor_vars], factor)
+########## Get the datasets from the feature importance workflow
 
-df_wy <- df %>% 
-  ## Change aspect and slope from radians to degrees
-  mutate(aspect=aspect*(180/pi),
-         slope=slope*(180/pi)) %>% 
-  mutate(wy = as.Date(wy, format = "%Y")) %>% 
-  group_by(across(all_of(group_cols))) %>% 
-  mutate(jun_tavg = mean(tavg[month == 6]),
-         jul_tavg = mean(tavg[month == 7]),
-         aug_tavg = mean(tavg[month == 8]),
-         sep_tavg = mean(tavg[month == 9]),
-         oct_tavg = mean(tavg[month == 10]),
-         nov_tavg = mean(tavg[month == 11]),
-         dec_tavg = mean(tavg[month == 12]),
-         jan_tavg = mean(tavg[month == 1]),
-         feb_tavg = mean(tavg[month == 2]),
-         mar_tavg = mean(tavg[month == 3]),
-         apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5]),) %>% 
-  mutate(peak_swe=max(swe)) %>%
-  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
-  summarise_if(is.numeric, mean) %>% 
-  ungroup() %>% 
-  ## Reorder response variables first
-  select(!!response_var, everything()) %>% 
-  ## Remove unwanted variables (manually?)
-  select(-c(day, month, year, basinID, hillID, zoneID, patchID))
+# Main aggregated dataset
+df_wy <- read.csv(here("aggregated_datasets", "df_wy.csv"))
+# Aggregated dataset for climate scenario 0
+df_wy0 <- read.csv(here("aggregated_datasets", "df_wy0.csv"))
+# Aggregated dataset for climate scenario 2
+df_wy2 <- read.csv(here("aggregated_datasets", "df_wy2.csv"))
 
-## Create data frame with only climate scenario 0
-df_wy0 <- df_wy %>% 
-  filter(clim==0) %>% 
-  select(-clim)
+# Convert categorical variables to factors
+df_wy[,factor_vars] <- lapply(df_wy[,factor_vars], factor)
+df_wy$clim <- as.factor(df_wy$clim)
+df_wy0[,factor_vars] <- lapply(df_wy0[,factor_vars], factor)
+df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 
-## Create data frame with only climate scenario 2
-df_wy2 <- df_wy %>% 
-  filter(clim==2) %>% 
-  select(-clim)
-
-df_test <- df_wy %>% 
-  mutate(quantile = paste0(ntile(peak_swe, 4), " Quantile"))
-
-
-## Text for the welcome page
+######### Text for the welcome page
 
 welcome <- "Welcome to the RHESSys Interpretation App. Use this app to explore your RHESSys output data."
 
@@ -78,7 +45,7 @@ intro_3 <- "- Use the \"Metadata\" tab to learn more about each variable within 
 
 importance_caption <- "The above graphs uses the random forest workflow to rank how important each varible is in predicting your responce variable, in this case Net Primary Productivity. The graph on the left ranks the variables in a normal climate scenario, and the graph on the right ranks the variables in a +2 degree C cliamte warming scenario."
 
-## Inputs
+########## Inputs
 
 stratum_sel <- checkboxGroupInput("stratum_sel",
                                   label = tags$h4("Select desired stratum to look at:"),
@@ -128,7 +95,7 @@ quantile_slider <- sliderInput("quantile_sel",
                                max = 10,
                                value = 1)
 
-# Create UI
+########## Create UI
 ui <- fluidPage(
   
   theme = shinytheme("superhero"),
@@ -148,7 +115,7 @@ ui <- fluidPage(
              tabPanel("Variable Importance",
                       tags$h3("Random Forest Variable Importance Output:"),
                       tags$h4("Your Responce Variable: Net Primary Productivity (NPP)"),
-                      img(src = "importance_screenshot.png", height = 600, width = 1250),
+                      img(src = "importance_plots.png", height = 800, width = 800),
                       tags$h6(importance_caption)),
              tabPanel("Visualizations",
                       sidebarPanel(stratum_sel,
@@ -165,7 +132,7 @@ ui <- fluidPage(
   )
 )
 
-# Create a server
+########## Create a server
 server <- function(input, output) {
   
   # Create a reactive dataframe
@@ -191,6 +158,6 @@ server <- function(input, output) {
   
 }
 
-# Let R know that you want to combine UI and server into an app
+########## Let R know that you want to combine UI and server into an app
 shinyApp(ui = ui, server = server)
 
