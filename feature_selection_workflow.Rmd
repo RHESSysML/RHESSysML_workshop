@@ -67,6 +67,27 @@ factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
 response_var <- "npp"
 ```
 
+```{r input_tests}
+# Class types
+if (class(group_cols) != "character") {
+  stop("Group columns should be saved as characters.")
+}
+if (class(factor_vars) != "character") {
+  stop("Factor columns should be saved as characters.")
+}
+if (class(response_var) != "character") {
+  stop("Response variable columns should be saved as characters.")
+}
+
+# Factors are not numeric
+for (column in factor_vars) {
+  num_categories = n_distinct(df[,column])
+  if (num_categories > 50) {
+    warning(paste(column, "has", num_categories, "categories, should this column be numeric?"))
+  }
+}
+```
+
 Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames.
 
 ```{r prepare_data}
