@@ -282,6 +282,10 @@ preference.order <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
 ```{r create_correlation_functions}
 # Remove variables based on VIF and Correlation thresholds
 remove_vif <- function(predictors.df, vif.threshold=5) {
+  if (vif.threshold < 1) {
+    stop("VIF threshold must be greater than or equal to 1.")
+  }
+  
   variable.selection <- auto_vif(x=predictors.df,
                                  vif.threshold=vif.threshold,
                                  preference.order=preference.order) 
@@ -290,6 +294,10 @@ remove_vif <- function(predictors.df, vif.threshold=5) {
 }
 
 remove_cor <- function(predictors.df, cor.threshold=0.75) {
+  if(cor.threshold < 0 | cor.threshold > 1) {
+    stop("Correlation threshold must be between 0 and 1.")
+  }
+  
   variable.selection <- auto_cor(x=predictors.df,
                                  cor.threshold=cor.threshold,
                                  preference.order=preference.order) 
