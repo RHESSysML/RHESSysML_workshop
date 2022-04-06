@@ -1,5 +1,5 @@
 ---
-title: "metadata"
+title: "Metadata"
 author: "RHESSysML"
 date: "4/4/2022"
 output: html_document
@@ -49,10 +49,10 @@ metadata <- data.frame(
                        "Maximum Daily Temperature (deg C)",
                        "Minimum Daily Temperature (deg C)","Aspect (degrees CCW from east)",
                        "Slope (degrees)","Elevation (m.a.s.l.)",
-                       "Average tempuratuve for the winter, which are months 12, 1, 2 and 3 by default.",
-                       "Average tempuratuve for the spring, which are months 4 and 5 by default.",
-                       "Average tempuratuve for the summer, which are months 6, 7, 8 and 9 by default.",
-                       "Average tempuratuve for the fall, which are months 10 and 11 by default.",
+                       "Average temperature for the winter, which are months 12, 1, 2 and 3 by default.",
+                       "Average temperature for the spring, which are months 4 and 5 by default.",
+                       "Average temperature for the summer, which are months 6, 7, 8 and 9 by default.",
+                       "Average temperature for the fall, which are months 10 and 11 by default.",
                        "The highest snow water equivalent level for that water year.",
                        "The ratio between snow water equivalent and precipitation.")
 )
@@ -91,7 +91,7 @@ metadata <- arrange(metadata, variable)
 Save the metadata dataframe as a csv file to be used in the shiny app.
 
 ```{r}
-write.csv(metadata, file = here("data", "metadata.csv"))
+write.csv(metadata, file = here("aggregated_datasets", "metadata.csv"))
 ```
 
 
