@@ -282,7 +282,20 @@ imp0 <- randomForest(formula=npp~.,
                      keep.inbag=TRUE)
 
 # Set preference order based on variable importance
-preference.order <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
+preference.order0 <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
+
+# Second climate scenario
+
+# Find preliminary importance using random forest
+imp2 <- randomForest(formula=npp~.,
+                     data=df_wy2,
+                     replace=TRUE,
+                     importance=TRUE,
+                     keep.forest=TRUE,
+                     keep.inbag=TRUE)
+
+# Set preference order based on variable importance
+preference.order2 <- varImp(imp2) %>% arrange(-Overall) %>% rownames()
 
 # Preference order can be determined manually for variables of interest:
 #preference.order <- c("precip", "rz_storage", "trans", "evap")
@@ -290,7 +303,7 @@ preference.order <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
 
 ```{r create_correlation_functions}
 # Remove variables based on VIF and Correlation thresholds
-remove_vif <- function(predictors.df, vif.threshold=5) {
+remove_vif <- function(predictors.df, vif.threshold=5, preference.order=preference.order0) {
   if (vif.threshold < 1) {
     stop("VIF threshold must be greater than or equal to 1.")
   }
@@ -302,7 +315,7 @@ remove_vif <- function(predictors.df, vif.threshold=5) {
   return(variable.selection)
 }
 
-remove_cor <- function(predictors.df, cor.threshold=0.75) {
+remove_cor <- function(predictors.df, cor.threshold=0.75, preference.order=preference.order0) {
   if(cor.threshold < 0 | cor.threshold > 1) {
     stop("Correlation threshold must be between 0 and 1.")
   }
@@ -319,12 +332,12 @@ Thresholds for VIF and correlation can be set using the function below, with def
 
 ```{r remove_multicollinearity, warning=FALSE}
 # Create list of selected variables
-wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5)$selected.variables
-wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75)$selected.variables
+wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5, preference.order=preference.order0)$selected.variables
+wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75, preference.order=preference.order0)$selected.variables
 wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
 
-wy2_vif <- remove_vif(predictors.df=allpredictors.df_wy2, vif.threshold=5)$selected.variables
-wy2_cor <- remove_cor(predictors.df=allpredictors.df_wy2, cor.threshold=0.75)$selected.variables
+wy2_vif <- remove_vif(predictors.df=allpredictors.df_wy2, vif.threshold=5, preference.order=preference.order2)$selected.variables
+wy2_cor <- remove_cor(predictors.df=allpredictors.df_wy2, cor.threshold=0.75, preference.order=preference.order2)$selected.variables
 wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
