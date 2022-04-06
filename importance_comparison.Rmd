@@ -1,0 +1,75 @@
+---
+title: "Importance Comparison"
+author: "Peter Menzies"
+date: "4/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**You have to run the main workflow Rmd first to run this**
+
+## Clim0
+
+```{r}
+varimp0 <- varImp(rf_wy0) %>% 
+  arrange(-Overall) %>% 
+  rownames_to_column() %>% 
+  rename(Variable = rowname, Importance = Overall)
+
+ggplot(varimp0, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+```{r}
+permimp0 <- permimp(rf_wy0, do_check=FALSE, progressBar=FALSE) %>% 
+  imp_to_table()
+
+ggplot(permimp0, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+```{r}
+rf_imp0 <- rf_wy0$importance %>% data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(Importance = X.IncMSE, Variable = rowname)
+
+ggplot(rf_imp0, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+
+## Clim2
+
+```{r}
+varimp2 <- varImp(rf_wy2, scale=F) %>% 
+  arrange(-Overall) %>% 
+  rownames_to_column() %>% 
+  rename(Variable = rowname, Importance = Overall)
+
+ggplot(varimp2, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+```{r}
+permimp2 <- permimp(rf_wy2, do_check=FALSE, progressBar=FALSE) %>% 
+  imp_to_table()
+
+ggplot(permimp2, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+```{r}
+rf_imp2 <- rf_wy2$importance %>% data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(Importance = X.IncMSE, Variable = rowname)
+
+ggplot(rf_imp2, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+```
+
+
+
+
