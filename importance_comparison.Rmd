@@ -44,7 +44,7 @@ ggplot(rf_imp0, aes(x = Importance, y = reorder(Variable, Importance))) +
 ## Clim2
 
 ```{r}
-varimp2 <- varImp(rf_wy2) %>% 
+varimp2 <- varImp(rf_wy2, scale=F) %>% 
   arrange(-Overall) %>% 
   rownames_to_column() %>% 
   rename(Variable = rowname, Importance = Overall)
