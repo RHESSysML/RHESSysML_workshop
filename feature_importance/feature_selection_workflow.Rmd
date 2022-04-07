@@ -480,13 +480,16 @@ rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
                 trControl=trainControl(method="none", seed=4326))
 ```
 
-Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
+```{r variable_importance}
+imp_wy0 <- varImp(rf_wy0$finalModel, scale=FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  mutate(Rank=rank(-Overall))
 
-```{r get_importance, warning=FALSE}
-imp_wy0 <- permimp(rf_wy0$finalModel, do_check=FALSE, progressBar=FALSE)
-
-imp_wy2 <- permimp(rf_wy2$finalModel, do_check=FALSE, progressBar=FALSE)
+imp_wy2 <- varImp(rf_wy2$finalModel, scale=FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  mutate(Rank=rank(-Overall))
 ```
+
 
 # Model Evaluation
 
@@ -513,7 +516,6 @@ allpredictors.df_wy0_reduced <- df_wy0_reduced %>%
   select(!response)
 
 rf.crossValidation(x=rf_wy0$finalModel, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
-
 ```
 
 The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains 89.68% of the variance in NPP. This result is 0.66% lower than our original fit % explained.
@@ -532,17 +534,6 @@ The results above indicate that, through 10-fold cross validation with 10% of da
 Now, we can visualize the results of the Random Forest feature selection.
 
 ```{r create_imp_table}
-imp_to_table <- function(imp) {
-  df_permimp <- imp$values %>%
-    data.frame() %>% 
-    rownames_to_column("Variable") %>% 
-    rename("Importance"=".") %>% 
-    mutate(Rank=rank(-Importance))
-}
-
-df_imp_wy0 <- imp_to_table(imp_wy0)
-df_imp_wy2 <- imp_to_table(imp_wy2)
-
 # rank_importance <- function(df_imp) {
 #   df_name <- deparse(substitute(df_imp))
 #   df_imp_wy0 %>% 
@@ -560,10 +551,10 @@ df_imp_wy2 <- imp_to_table(imp_wy2)
 The following table shows the relative importance of predictor variables between the two climate scenarios.
 
 ```{r}
-df_imp <- df_imp_wy0 %>% 
-  full_join(df_imp_wy2, by="Variable") %>% 
+df_imp <- imp_wy0 %>% 
+  full_join(imp_wy2, by="Variable") %>% 
   mutate(Diff = Rank.x-Rank.y) %>% 
-  select(-c(Importance.x, Importance.y)) %>% 
+  select(-c(Overall.x, Overall.y)) %>% 
   rename("Rank (0)" = Rank.x, 
          "Rank (2)" = Rank.y) %>% 
   arrange(`Rank (0)`)
@@ -583,9 +574,9 @@ We see that precipitation and rz_storage are the first and second most important
 This same information can be plotted below. The variable importance plots also reveal relative magnitude of importance between variables. Note that this is somewhat of an artifact of the mechanics of a random forests model on not necessarily reflective of the actual relative importance of these variables in the natural world.
 
 ```{r plot_imp}
-plot_imp <- function(imp_df) {
-  df_name <- deparse(substitute(imp_df))
-  ggplot(data=imp_df, aes(x=Importance, y=reorder(Variable, Importance))) +
+plot_imp <- function(varimp_df) {
+  df_name <- deparse(substitute(varimp_df))
+  ggplot(data=varimp_df, aes(x=Overall, y=reorder(Variable, Overall))) +
     geom_col() +
     theme_light() +
     theme(legend.position = "none",
@@ -595,8 +586,8 @@ plot_imp <- function(imp_df) {
          y="Variable")
 }
 
-wy0_plot <- plot_imp(df_imp_wy0)
-wy2_plot <- plot_imp(df_imp_wy2)
+wy0_plot <- plot_imp(imp_wy0)
+wy2_plot <- plot_imp(imp_wy2)
 
 wy0_plot + wy2_plot 
 ```
@@ -622,14 +613,14 @@ get_important_predictors <- function(df_imp, rank) {
 }
 
 # assigning first and second most important variables to objects
-pred1_clim0 <- get_important_predictors(df_imp_wy0, 1)
-pred2_clim0 <- get_important_predictors(df_imp_wy0, 2)
-pred1_clim2 <- get_important_predictors(df_imp_wy2, 1)
-pred2_clim2 <- get_important_predictors(df_imp_wy2, 2)
+pred1_clim0 <- get_important_predictors(imp_wy0, 1)
+pred2_clim0 <- get_important_predictors(imp_wy0, 2)
+pred1_clim2 <- get_important_predictors(imp_wy2, 1)
+pred2_clim2 <- get_important_predictors(imp_wy2, 2)
 
 create_binned_df <- function(df_wy) {
   df_pred_binned <- df_wy %>% 
-  select(all_of(pred1_clim0), all_of(pred2_clim0), all_of(response_var)) %>%
+  select(all_of(pred1_clim0), all_of(pred2_clim0), response) %>%
   mutate(pred1 = df_wy[[pred1_clim0]],
          pred2 = df_wy[[pred2_clim0]]) %>% 
   mutate(bin = as.numeric(ntile(pred2, 4)))
@@ -642,7 +633,7 @@ df2_pred_binned <- create_binned_df(df_wy2)
 ```
 
 ```{r}
-ggplot(df0_pred_binned, aes(x = pred1, y = .data[[response_var]])) +
+ggplot(df0_pred_binned, aes(x = pred1, y = .data[["response"]])) +
   geom_point() +
   geom_smooth(method = "lm") +
   labs(x = str_to_title(pred1_clim0), y = response_var,
@@ -663,7 +654,7 @@ create_binned_plot <- function(df_binned) {
     scen = "2"
   }
   
-  ggplot(df_binned, aes(x = pred1, y = .data[[response_var]])) +
+  ggplot(df_binned, aes(x = pred1, y = .data[["response"]])) +
     geom_point() +
     geom_smooth(method = "lm") +
     facet_wrap("bin") +
@@ -755,3 +746,35 @@ Prasad, Anantha M., Louis R. Iverson, and Andy Liaw. 2006. "Newer Classification
 Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
 
 Strobl, Carolin, Anne-Laure Boulesteix, Thomas Kneib, Thomas Augustin, and Achim Zeileis. 2008. "Conditional Variable Importance for Random Forests." *BMC Bioinformatics* 9 (1): 307. <https://doi.org/10.1186/1471-2105-9-307>.
+
+
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
+
+```{r permimp_graveyard, warning=FALSE}
+# imp_wy0 <- permimp(rf0_obj, do_check=FALSE, progressBar=FALSE)
+# 
+# imp_wy2 <- permimp(rf_wy2$finalModel, do_check=FALSE, progressBar=FALSE)
+
+# imp_to_table <- function(imp) {
+#   df_permimp <- imp$values %>%
+#     data.frame() %>% 
+#     rownames_to_column("Variable") %>% 
+#     rename("Importance"=".") %>% 
+#     mutate(Rank=rank(-Importance))
+# }
+# 
+# df_imp_wy0 <- imp_to_table(imp_wy0)
+# df_imp_wy2 <- imp_to_table(imp_wy2)
+
+# plot_imp <- function(imp_df) {
+#   df_name <- deparse(substitute(imp_df))
+#   ggplot(data=imp_df, aes(x=Importance, y=reorder(Variable, Importance))) +
+#     geom_col() +
+#     theme_light() +
+#     theme(legend.position = "none",
+#           axis.text.x = element_blank()) +
+#     labs(title=paste0("Variable Importance for \n", df_name),
+#          x="Importance",
+#          y="Variable")
+# }
+```
