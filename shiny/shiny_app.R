@@ -9,24 +9,25 @@ library(psych)
 library(kableExtra)
 library(shinythemes)
 library(lubridate)
+library(DT)
 
 #options(scipen=999)
 
 ########## Set the working directory
 setwd(here())
 
-########## User Inputs
-factor_vars <- c("stratumID", "scen", "topo")
-response_var <- "npp"
-
 ########## Get the datasets from the feature importance workflow
 
 # Main aggregated dataset
-df_wy <- read.csv(here("aggregated_datasets", "df_wy.csv"))
+df_wy <- read.csv(here("shiny", "aggregated_datasets", "df_wy.csv"))
 # Aggregated dataset for climate scenario 0
-df_wy0 <- read.csv(here("aggregated_datasets", "df_wy0.csv"))
+df_wy0 <- read.csv(here("shiny", "aggregated_datasets", "df_wy0.csv"))
 # Aggregated dataset for climate scenario 2
-df_wy2 <- read.csv(here("aggregated_datasets", "df_wy2.csv"))
+df_wy2 <- read.csv(here("shiny", "aggregated_datasets", "df_wy2.csv"))
+
+########## User Inputs
+factor_vars <- c("stratumID", "scen", "topo")
+response_var <- colnames(df_wy[1])
 
 # Convert categorical variables to factors
 df_wy[,factor_vars] <- lapply(df_wy[,factor_vars], factor)
@@ -36,9 +37,10 @@ df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 
 ######### Import the metadata and create a table out of it
 
-metadata <- read.csv(here("aggregated_datasets", "metadata.csv"))
-metadata_table <- kable(metadata) %>% 
-  kable_styling(bootstrap_options = c("striped", "hover"))
+metadata <- read.csv(here("shiny", "aggregated_datasets", "metadata.csv")) %>% 
+  select("variable", "full_name", "description")
+# metadata_table <- kable(metadata) %>% 
+#   kable_styling(bootstrap_options = c("striped", "hover"))
 
 ######### Text for the welcome page
 
@@ -117,7 +119,7 @@ ui <- fluidPage(
                       img(src = "RHESSys_logo_V2.png", height = 450, width = 450)),
              tabPanel("Metadata",
                       tags$h3("Explore the metadata:"),
-                      htmlOutput("metadata_kable")),
+                      DT::dataTableOutput("metadata_DT")),
              tabPanel("Variable Importance",
                       tags$h3("Random Forest Variable Importance Output:"),
                       tags$h4("Your Responce Variable: Net Primary Productivity (NPP)"),
@@ -162,9 +164,17 @@ server <- function(input, output) {
       theme(text = element_text(size = 17))
   })
   
-  output$metadata_kable <- renderText({
-    kable(metadata) %>% 
-      kable_styling(bootstrap_options = c("striped", "hover"))
+  output$metadata_DT <- DT::renderDataTable({
+    DT::datatable(metadata,
+                  options = list(pageLength = 30,
+                                initComplete = JS(
+                                     "function(settings, json) {",
+                                     "$(this.api().table().header()).css({'color': '#FFFFFF'});",
+                                     "}")),
+                  caption = tags$caption(style = 'caption-side: top; text-align: left; color: white', 
+                                         'Table : ', 
+                                         tags$em('Metadata'),
+                                         color = "white"))
   })
   
 }
