@@ -273,7 +273,6 @@ Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficien
 # Find preliminary importance using random forest
 imp0 <- train(x=df_wy0 %>% select(!response),
               y=df_wy0$response,
-              data=df_wy0,
               method='rf',
               importance=TRUE,
               replace=TRUE,
@@ -289,7 +288,6 @@ preference.order0 <- varImp(imp0$finalModel, scale=FALSE) %>%
 # Find preliminary importance using random forest
 imp2 <- train(x=df_wy2 %>% select(!response),
               y=df_wy2$response,
-              data=df_wy2,
               method='rf',
               importance=TRUE,
               replace=TRUE,
@@ -406,9 +404,7 @@ Now, the data frames are adequately prepared to determine predictor feature impo
 
 A primary advantage of using a random forest model is that there is relatively little hyper-parameter tuning needed. Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
 
-```{r tune_mtry_function}
-set.seed(4326)
-
+```{r tuning_function}
 df_wy0_reduced <- as.data.frame(df_wy0_reduced)
 df_wy2_reduced <- as.data.frame(df_wy2_reduced)
 
@@ -429,12 +425,14 @@ tune_rf_model <- function(df) {
   # bestmtry <- match(min(tuning), tuning)
   # return(bestmtry)
 }
+
 ```
 
-```{r tune_rf_wy0}
+```{r tune_rf_wy0, warning=FALSE}
+set.seed(4326)
+
 mtry0 <- tune_rf_model(df_wy0_reduced)
 bestmtry0 <- match(min(mtry0), mtry0)
-
 ggplot(data=as.data.frame(mtry0), aes(x=1:length(mtry0), y=mtry0)) +
   geom_vline(xintercept=bestmtry0, linetype="dashed") +
   geom_point() +
@@ -445,10 +443,11 @@ ggplot(data=as.data.frame(mtry0), aes(x=1:length(mtry0), y=mtry0)) +
        title=paste0("The best mtry value for ", deparse(substitute(df_wy0_reduced)), " is ", bestmtry0))
 ```
 
-```{r tune_rf_wy2}
+```{r tune_rf_wy2, warning=FALSE}
+set.seed(4326)
+
 mtry2 <- tune_rf_model(df_wy2_reduced)
 bestmtry2 <- match(min(mtry2), mtry2)
-
 ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
   geom_vline(xintercept=bestmtry2, linetype="dashed") +
   geom_point() +
@@ -464,16 +463,18 @@ ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
 ```{r get_random_forests}
 rf_wy0 <- train(x=df_wy0_reduced %>% select(!response),
                 y=df_wy0_reduced$response,
-                data=df_wy0_reduced,
                 method='rf',
+                .mtry=bestmtry0,
+                ntree=500,
                 importance=TRUE,
                 replace=TRUE,
                 trControl=trainControl(method="none", seed=4326))
 
 rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
                 y=df_wy2_reduced$response,
-                data=df_wy2_reduced,
                 method='rf',
+                .mtry=bestmtry2,
+                ntree=500,
                 importance=TRUE,
                 replace=TRUE,
                 trControl=trainControl(method="none", seed=4326))
@@ -482,9 +483,9 @@ rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
 Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
 
 ```{r get_importance, warning=FALSE}
-imp_wy0 <- permimp(rf_wy0, do_check=FALSE, progressBar=FALSE)
+imp_wy0 <- permimp(rf_wy0$finalModel, do_check=FALSE, progressBar=FALSE)
 
-imp_wy2 <- permimp(rf_wy2, do_check=FALSE, progressBar=FALSE)
+imp_wy2 <- permimp(rf_wy2$finalModel, do_check=FALSE, progressBar=FALSE)
 ```
 
 # Model Evaluation
@@ -494,13 +495,13 @@ The following section provides visualizations and statistics to evaluate the ran
 First, simply calling the random forest shows a summary of the results, including percent variance explained.
 
 ```{r}
-rf_wy0
+rf_wy0$finalModel
 ```
 
 The model for the base climate scenario explained 90.34% of variance in NPP.
 
 ```{r}
-rf_wy2
+rf_wy2$finalModel
 ```
 
 The model for the +2 degree Celsius climate scenario explained 88.05% of variance in NPP.
@@ -511,7 +512,7 @@ Next, we can implement a permutation test cross-validation for the random forest
 allpredictors.df_wy0_reduced <- df_wy0_reduced %>% 
   select(!response)
 
-rf.crossValidation(x=rf_wy0, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
+rf.crossValidation(x=rf_wy0$finalModel, xdata=allpredictors.df_wy0_reduced, p=0.1, n=10)
 
 ```
 
@@ -521,7 +522,7 @@ The results above indicate that, through 10-fold cross validation with 10% of da
 allpredictors.df_wy2_reduced <- df_wy2_reduced %>% 
   select(!response)
 
-rf.crossValidation(x=rf_wy2, xdata=allpredictors.df_wy2_reduced, p=0.1, n=10)
+rf.crossValidation(x=rf_wy2$finalModel, xdata=allpredictors.df_wy2_reduced, p=0.1, n=10)
 ```
 
 The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains 86.99% of the variance in NPP. This result is 1.06% lower than our original fit % explained.
@@ -705,7 +706,7 @@ Variable interactions between two predictors and the corresponding NPP predictio
 Below, the x-axis represents values of `rz_storage` , y-axis represents values of `precip` , and the cell colors/values represent predicted values of `npp` , with red indicating high and blue indicating low. For this interaction, we can see that high values of precipitation and root-zone storage result in higher predictions of NPP. This is only true for root zone storage given high precipitation, while high precipitation at all levels of root zone storage predicts relatively higher NPP. This is another indicator that it is an important predictor.
 
 ```{r}
-plot_predict_interaction(rf_wy0, df_wy0_reduced, 
+plot_predict_interaction(rf_wy0$finalModel, df_wy0_reduced, 
                          "rz_storage", "precip",
                          grid=50) # smaller grid values reveal more general relationships
 ```
@@ -717,13 +718,13 @@ The capstone team chose to use conditional permutation importance above as our m
 The plot below presents the top 10 variables using % mean decrease in accuracy (%IncMSE) and mean decrease in node impurity (IncNodePurity). %IncMSE is computed from permuting the out-of-bag data, while IncNodePurity is the mean total decrease in node impurities from splitting on the given variable, as measured by the residual sum of squares.
 
 ```{r}
-varImpPlot(rf_wy0, n.var=10)
+varImpPlot(rf_wy0$finalModel, n.var=10)
 ```
 
 The plot below visualizes the distribution of minimum depth from the random forest model. Low values, such as for precipitation below, indicate that many observations are divided into groups based on that variable.
 
 ```{r}
-min_depth_frame <- min_depth_distribution(rf_wy0)
+min_depth_frame <- min_depth_distribution(rf_wy0$finalModel)
 
 plot_min_depth_distribution(min_depth_frame,
                             mean_sample="relevant_trees")
@@ -734,7 +735,7 @@ Lastly, SHAP values allow visualization of the direction of these relationships.
 ```{r}
 library(fastshap)
 
-explain0 <- explain(object=rf_wy0,
+explain0 <- explain(object=rf_wy0$finalModel,
                     X=subset(df_wy0_reduced, select=-npp),
                     pred_wrapper=predict)
 
