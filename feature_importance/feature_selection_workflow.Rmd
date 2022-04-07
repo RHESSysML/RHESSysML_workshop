@@ -68,18 +68,18 @@ response_var <- "npp"
 ```
 
 ```{r input_tests}
-# Class types
+# Check class types
 if (class(group_cols) != "character") {
-  stop("Group columns should be saved as characters.")
+  stop("The group columns specified above should be written as characters.")
 }
 if (class(factor_vars) != "character") {
-  stop("Factor columns should be saved as characters.")
+  stop("The factor columns specified above should be written as characters.")
 }
 if (class(response_var) != "character") {
-  stop("Response variable columns should be saved as characters.")
+  stop("The response variable column specified above should be written as a character.")
 }
 
-# Factors are not numeric
+# Check for factors with many categories
 for (column in factor_vars) {
   num_categories = n_distinct(df[,column])
   if (num_categories > 50) {
@@ -280,7 +280,7 @@ imp0 <- train(x=df_wy0 %>% select(!response),
               trControl=trainControl(method="none", seed=4326))
 
 # Set preference order based on variable importance
-preference.order0 <- varImp(imp0, scale=FALSE)$importance %>% 
+preference.order0 <- varImp(imp0$finalModel, scale=FALSE) %>% 
   arrange(-Overall) %>% 
   rownames()
 
@@ -296,7 +296,7 @@ imp2 <- train(x=df_wy2 %>% select(!response),
               trControl=trainControl(method="none", seed=4326))
 
 # Set preference order based on variable importance
-preference.order2 <- varImp(imp2, scale=FALSE)$importance %>% 
+preference.order2 <- varImp(imp2$finalModel, scale=FALSE) %>% 
   arrange(-Overall) %>% 
   rownames()
 ```
