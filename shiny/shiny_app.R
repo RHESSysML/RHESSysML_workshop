@@ -36,7 +36,7 @@ df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 
 ######### Import the metadata and create a table out of it
 
-metadata <- read.csv(here("data", "metadata.csv"))
+metadata <- read.csv(here("aggregated_datasets", "metadata.csv"))
 metadata_table <- kable(metadata) %>% 
   kable_styling(bootstrap_options = c("striped", "hover"))
 
