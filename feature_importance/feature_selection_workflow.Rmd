@@ -240,37 +240,33 @@ First, we create data frames containing only the predictor variables to assist w
 num_response <- length(response_var)
 
 # Save data frames of predictor variables for first climate scenario
-numericpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)] %>% select(where(is.numeric))
-allpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)]
-factorpredictors.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)] %>% select(where(is.factor))
+num_preds.df_wy0 <- df_wy0[,(num_response+1):ncol(df_wy0)] %>% 
+  select(where(is.numeric))
+
+factor_preds.df_wy0 <- df_wy0 %>% 
+  select(!response_var & where(is.factor)) %>% 
+  colnames()
 
 # Save data frames of predictor variables for second climate scenario
-numericpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(where(is.numeric))
-allpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)]
-factorpredictors.df_wy2 <- df_wy2[,(num_response+1):ncol(df_wy2)] %>% select(where(is.factor))
+num_preds.df_wy2 <- df_wy2 %>% 
+  select(!response_var & where(is.numeric))
+
+factor_preds.df_wy2 <- df_wy2 %>% 
+  select(!response_var & where(is.factor)) %>% 
+  colnames()
 ```
 
-Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. In the code below, an initial preference order of variables selected is determined using a preliminary random forest method. While highly correlated variables will not be in the correct order here, their relative importance should be reasonably accurate.
+Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. The functions allow the user to define an order of preference for the selection of variables. Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. While highly correlated variables will not be in the correct order here, their relative importance should be reasonably accurate. The second method is used by default. 
 
-**Do we want to do this preliminary imp process for clim 2 as well?**
-
-```{r}
-# First climate scenario
-
-# Find preliminary importance using random forest
-imp <- rf(data=df_wy,
-          dependent.variable.name=response_var,
-          predictor.variable.names=colnames(allpredictors.df_wy0),
-          verbose=FALSE)
-
-# Set preference order based on variable importance
-preference.order <- imp$importance$per.variable$variable
-
+```{r manual_preference_order}
 # Preference order can be determined manually for variables of interest:
-#preference.order <- c("precip", "rz_storage", "trans", "evap")
+
+#preference.order0 <- c("precip", "rz_storage", "trans", "evap")
+#preference.order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
-```{r find_preference_order}
+
+```{r auto_preference_order}
 # First climate scenario
 
 # Find preliminary importance using random forest
@@ -282,7 +278,9 @@ imp0 <- randomForest(formula=npp~.,
                      keep.inbag=TRUE)
 
 # Set preference order based on variable importance
-preference.order0 <- varImp(imp0) %>% arrange(-Overall) %>% rownames()
+preference.order0 <- varImp(imp0, scale=FALSE) %>% 
+  arrange(-Overall) %>% 
+  rownames()
 
 # Second climate scenario
 
@@ -295,15 +293,17 @@ imp2 <- randomForest(formula=npp~.,
                      keep.inbag=TRUE)
 
 # Set preference order based on variable importance
-preference.order2 <- varImp(imp2) %>% arrange(-Overall) %>% rownames()
-
-# Preference order can be determined manually for variables of interest:
-#preference.order <- c("precip", "rz_storage", "trans", "evap")
+preference.order2 <- varImp(imp2, scale=FALSE) %>% 
+  arrange(-Overall) %>% 
+  rownames()
 ```
 
 ```{r create_correlation_functions}
 # Remove variables based on VIF and Correlation thresholds
 remove_vif <- function(predictors.df, vif.threshold=5, preference.order=preference.order0) {
+  if (!(class(vif.threshold) %in% c("numeric"))) {
+    stop("VIF threshold must be numeric.")
+  }
   if (vif.threshold < 1) {
     stop("VIF threshold must be greater than or equal to 1.")
   }
@@ -316,6 +316,9 @@ remove_vif <- function(predictors.df, vif.threshold=5, preference.order=preferen
 }
 
 remove_cor <- function(predictors.df, cor.threshold=0.75, preference.order=preference.order0) {
+  if (!(class(cor.threshold) %in% c("numeric"))) {
+    stop("Correlation threshold must be numeric.")
+  }
   if(cor.threshold < 0 | cor.threshold > 1) {
     stop("Correlation threshold must be between 0 and 1.")
   }
@@ -332,20 +335,20 @@ Thresholds for VIF and correlation can be set using the function below, with def
 
 ```{r remove_multicollinearity, warning=FALSE}
 # Create list of selected variables
-wy0_vif <- remove_vif(predictors.df=allpredictors.df_wy0, vif.threshold=5, preference.order=preference.order0)$selected.variables
-wy0_cor <- remove_cor(predictors.df=allpredictors.df_wy0, cor.threshold=0.75, preference.order=preference.order0)$selected.variables
+wy0_vif <- remove_vif(num_preds.df_wy0, vif.threshold=5, preference.order0)$selected.variables
+wy0_cor <- remove_cor(num_preds.df_wy0, cor.threshold=0.75, preference.order0)$selected.variables
 wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
 
-wy2_vif <- remove_vif(predictors.df=allpredictors.df_wy2, vif.threshold=5, preference.order=preference.order2)$selected.variables
-wy2_cor <- remove_cor(predictors.df=allpredictors.df_wy2, cor.threshold=0.75, preference.order=preference.order2)$selected.variables
+wy2_vif <- remove_vif(num_preds.df_wy2, vif.threshold=5, preference.order2)$selected.variables
+wy2_cor <- remove_cor(num_preds.df_wy2, cor.threshold=0.75, preference.order2)$selected.variables
 wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
 df_wy0_reduced <- df_wy0 %>% 
-  select(c(all_of(response_var), colnames(factorpredictors.df_wy0), all_of(wy0_select_variables)))
+  select(c(all_of(response_var), all_of(factor_preds.df_wy0), all_of(wy0_select_variables)))
 
 df_wy2_reduced <- df_wy2 %>% 
-  select(c(all_of(response_var), colnames(factorpredictors.df_wy2), all_of(wy2_select_variables)))
+  select(c(all_of(response_var), all_of(factor_preds.df_wy2), all_of(wy2_select_variables)))
 ```
 
 ## Summary of Removed Variables
