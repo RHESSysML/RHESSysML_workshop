@@ -348,10 +348,10 @@ wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
 df_wy0_reduced <- df_wy0 %>% 
-  select(c(all_of(response_var), all_of(factor_preds.df_wy0), all_of(wy0_select_variables)))
+  select(c(response, all_of(factor_preds.df_wy0), all_of(wy0_select_variables)))
 
 df_wy2_reduced <- df_wy2 %>% 
-  select(c(all_of(response_var), all_of(factor_preds.df_wy2), all_of(wy2_select_variables)))
+  select(c(response, all_of(factor_preds.df_wy2), all_of(wy2_select_variables)))
 ```
 
 ## Summary of Removed Variables
@@ -462,23 +462,21 @@ ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
 ### Random Forest Models
 
 ```{r get_random_forests}
-set.seed(4326)
-rf_wy0 <- randomForest(formula=npp~.,
-                       data=df_wy0_reduced,
-                       mtry=bestmtry0,
-                       replace=TRUE,
-                       importance=TRUE,
-                       keep.forest=TRUE,
-                       keep.inbag=TRUE)
+rf_wy0 <- train(x=df_wy0_reduced %>% select(!response),
+                y=df_wy0_reduced$response,
+                data=df_wy0_reduced,
+                method='rf',
+                importance=TRUE,
+                replace=TRUE,
+                trControl=trainControl(method="none", seed=4326))
 
-set.seed(4326)
-rf_wy2 <- randomForest(formula=npp~.,
-                       data=df_wy2_reduced,
-                       mtry=bestmtry2,
-                       replace=TRUE,
-                       importance=TRUE,
-                       keep.forest=TRUE,
-                       keep.inbag=TRUE)
+rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
+                y=df_wy2_reduced$response,
+                data=df_wy2_reduced,
+                method='rf',
+                importance=TRUE,
+                replace=TRUE,
+                trControl=trainControl(method="none", seed=4326))
 ```
 
 Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
