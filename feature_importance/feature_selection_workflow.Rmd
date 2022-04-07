@@ -27,6 +27,7 @@ library(patchwork)
 library(psych)
 library(kableExtra)
 library(zeallot)
+library(DT)
 
 # Machine Learning packages
 library(caret)
@@ -59,7 +60,13 @@ First, RHESSys output will need to be aggregated and cleaned based on specific r
 
 4.  Creating derived variables (i.e. Peak SWE).
 
-The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable.
+The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable. Change the inputs below to apply to your dataset in whatever way necessary. 
+
+The `group_cols` object selects the columns that the user wants the raw dataset to be aggregated by. 
+
+The `factor_vars` object are the predictor variables that will be converted to class factor, which allows the random forest workflow to function. Any predictor variables that should be factors instead of class numeric or character should be converted. (Example: stratumID is class numeric, but because there are 6 different strata, it makes more sense for them to be class factor.)
+
+The `response_var` object is the response variable that the user wants to predict. There should only be one response variable listed at a time.
 
 ```{r user_inputs}
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
@@ -174,9 +181,11 @@ Now, we have two data tables representing the two climate scenarios.
 Here we'll save the newly aggregated datesets to be automatically uploaded to the Shiny App.
 
 ```{r}
-write.csv(df_wy, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
-write.csv(df_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
-write.csv(df_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
+# For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
+
+# write.csv(df_wy, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
+# write.csv(df_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
+# write.csv(df_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
 ```
 
 
@@ -196,10 +205,8 @@ summarize_data <- function(df) {
   describe(df) %>% 
     select(vars, n, mean, sd, min, max, range) %>% 
     mutate(class = lapply(df, class)) %>% 
-    kable(digits=4,
-          align="r",
-          caption=paste0("Summary of ", df_name)) %>% 
-    kable_styling(bootstrap_options = c("striped", "hover"))
+    DT::datatable(options = list(pageLength = 7),
+                  caption = paste0("Summary of ", df_name))
 }
 
 summarize_data(df_wy0)
@@ -208,8 +215,8 @@ summarize_data(df_wy0)
 
 We can also look at the key study area characteristics. In this study, there are six study areas.
 
-```{r describe_topos}
-topos <- df_wy %>%
+```{r describe_strata}
+strata <- df_wy %>%
   filter(clim==0) %>% 
   select(c(stratumID, topo, elev, aspect, slope)) %>%
   group_by(stratumID, topo) %>% 
@@ -224,11 +231,8 @@ topos <- df_wy %>%
          "Aspect (degrees CCW from East)"=aspect,
          "Slope (degrees)"=slope)
 
-kable(topos, 
-      digits=2, 
-      caption="Summary of 6 Study Areas in Sagehen Creek", 
-      align=c("l", rep("r", ncol(topos) - 1))) %>% 
-  kable_styling(bootstrap_options = c("striped", "hover"))
+DT::datatable(strata,
+              caption = "Summary of 6 Study Areas in Sagehen Creek")
 ```
 
 # Remove Multicollinearity
@@ -532,21 +536,6 @@ The results above indicate that, through 10-fold cross validation with 10% of da
 # Visualize Results
 
 Now, we can visualize the results of the Random Forest feature selection.
-
-```{r create_imp_table}
-# rank_importance <- function(df_imp) {
-#   df_name <- deparse(substitute(df_imp))
-#   df_imp_wy0 %>% 
-#   select(Variable, Rank) %>% 
-#   arrange(Rank) %>% 
-#   kable(align="r",
-#         caption=paste0("Variable importance rank for ", df_name)) %>% 
-#   kable_styling(bootstrap_options = c("striped", "hover"))
-# }
-# 
-# rank_importance(df_imp_wy0)
-# rank_importance(df_imp_wy2)
-```
 
 The following table shows the relative importance of predictor variables between the two climate scenarios.
 
