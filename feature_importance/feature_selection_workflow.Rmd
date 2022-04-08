@@ -733,7 +733,7 @@ plot_min_depth_distribution(min_depth_frame,
                             mean_sample="relevant_trees")
 ```
 
-SHAP values allow visualization of the direction of these relationships.
+SHapley Additive exPlanations (SHAP) values interpret the marginal contributions of individual features. This allows visualization of the direction of the relationships between predictors and the response variable.
 
 ```{r}
 library(fastshap)
