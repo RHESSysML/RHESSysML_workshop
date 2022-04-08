@@ -532,7 +532,7 @@ rf_wy2$finalModel
 
 The model for the +2 degree Celsius climate scenario explained 88.05% of variance in NPP.
 
-Next, we can implement a permutation test cross-validation for the random forest models.
+Next, we can implement a permutation test cross-validation for the random forest models. The statistics are based on prediction error on the withheld data.
 
 ```{r}
 allpredictors.df_wy0_reduced <- df_wy0_reduced %>% 
