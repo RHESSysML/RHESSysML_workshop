@@ -38,6 +38,7 @@ library(partykit)
 library(permimp)
 library(rfUtilities)
 library(randomForestExplainer)
+library(fastshap)
 ```
 
 # Data Preparation
@@ -736,8 +737,6 @@ plot_min_depth_distribution(min_depth_frame,
 SHapley Additive exPlanations (SHAP) values interpret the marginal contributions of individual features. This allows visualization of the direction of the relationships between predictors and the response variable.
 
 ```{r}
-library(fastshap)
-
 explain0 <- explain(object=rf_wy0$finalModel,
                     X=subset(df_wy0_reduced, select=-response),
                     pred_wrapper=predict)
