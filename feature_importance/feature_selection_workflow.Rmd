@@ -668,25 +668,25 @@ create_binned_plot(df2_pred_binned)
 Variable interactions can be investigated in many ways. The bivariate partial dependence plot below provides a graphical depiction of the marginal effect of two variables on predicted NPP from the random forest model.
 
 ```{r}
-# bivariate.partialDependence(x=rf_wy0,
-#                             pred.data=allpredictors.df_wy0_reduced,
-#                             v1="lai",
-#                             v2="peak_swe",
-#                             grid.size=15,
-#                             col.ramp=c("orange", "green"),
-#                             ncols=20)
+bivariate.partialDependence(x=rf_wy0$finalModel,
+                            pred.data=allpredictors.df_wy0_reduced,
+                            v1="lai",
+                            v2="precip",
+                            grid.size=15,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
 ```
 
 Running this plot for both data sets can demonstrate how variable interactions shift given different climate scenarios.
 
 ```{r}
-# bivariate.partialDependence(x=rf_wy2,
-#                             pred.data=allpredictors.df_wy2_reduced,
-#                             v1="lai",
-#                             v2="peak_swe",
-#                             grid.size=15,
-#                             col.ramp=c("orange", "green"),
-#                             ncols=20)
+bivariate.partialDependence(x=rf_wy2$finalModel,
+                            pred.data=df_wy2_reduced[-1],
+                            v1="lai",
+                            v2="precip",
+                            grid.size=15,
+                            col.ramp=c("orange", "green"),
+                            ncols=20)
 ```
 
 Variable interactions between two predictors and the corresponding NPP predictions from the random forest model can be displayed as a grid of values.
