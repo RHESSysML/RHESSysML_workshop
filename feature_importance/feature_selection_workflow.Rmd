@@ -360,46 +360,121 @@ df_wy2_reduced <- df_wy2 %>%
 
 ## Summary of Removed Variables
 
-```{r}
-# Create df with preliminary variable importance (and rank) and whether each was selected or removed
-removed_importance0 <- imp$variable.importance %>% 
-  data.frame() %>% 
-  rownames_to_column("variable") %>%
-  rename("importance" = ".") %>% 
-  mutate("importance_rank" = rank(-importance)) %>% 
-  mutate(selected = case_when(variable %in% wy0_select_variables ~ "selected",
-                              !variable %in% wy0_select_variables ~ "removed")) %>% 
-  relocate("selected", .after = "variable")
+The following tables and plots are intended to elucidate the multicollinearity reduction process by showing which variables were removed and why.
 
-# creating df of VIFs
-removed_vif0 <- vif(allpredictors.df_wy0)
+```{r summarize_removed_vars_function}
+summarize_removed_vars <- function(clim, table = FALSE) {
+  
+  select_variables <- get(paste0("wy", clim, "_select_variables"))
+  imp <- get(paste0("imp", clim))
+  df <- get(paste0("df_wy", clim))
+  all_preds.df <- df %>% 
+    select(!response)
+  
+  
+  removed_importance <- imp0$finalModel["importance"] %>% 
+    data.frame() %>% 
+    rownames_to_column("variable") %>%
+    rename("importance" = "importance..IncMSE") %>% 
+    select(!importance.IncNodePurity) %>% 
+    mutate("importance_rank" = rank(-importance)) %>% 
+    mutate(selected = case_when(variable %in% select_variables ~ "selected",
+                                !variable %in% select_variables ~ "removed")) %>% 
+    relocate("selected", .after = "variable")
+  
+  
+  # Calculating vif again - auto_vif() only returns values for selected variables
+  removed_vif <- vif(all_preds.df)
+  
+  # joining dfs to create summary table of removed and selected variables
+  removed_summary <- removed_importance %>% 
+    left_join(removed_vif, by = "variable")
+  
+  if (table == TRUE) {
+    
+    removed_summary <- removed_summary %>% 
+      datatable()
+    
+  }
+  
+  return(removed_summary)
+  
+}
+```
 
-# joining dfs to create summary table of removed and selected variables
-removed_summary0 <- removed_importance0 %>% 
-  left_join(removed_vif0, by = "variable")
+```{r summarize_cor_function}
+summarize_cor <- function(clim, selected_removed) {
+  
+  num_preds.df <-  get(paste0("num_preds.df_wy", clim))
+  cor_matrix <- cor(num_preds.df)
+  select_variables <- get(paste0("wy", clim, "_select_variables"))
 
-# create df of only removed variables
-removed_corr0 <- df_wy0[-which(names(df_wy0) %in% c(wy0_select_variables, group_cols))]
+  
+  cor.df <- reshape2::melt(cor_matrix)
+  cor.df <- cor.df %>% 
+    filter(Var1 != Var2)
+  dups <- duplicated(sort(cor.df$value))
+  cor.df <- cor.df[!dups, ] %>% 
+    rename("correlation" = "value") %>% 
+    mutate(var1_selected = case_when(Var1 %in% select_variables ~ "selected",
+                            !Var1 %in% select_variables ~ "removed")) 
+  
+  if (selected_removed == "selected") {
+    cor.df <- cor.df %>% 
+      filter(var1_selected == "selected")
+  }
+  
+  if (selected_removed == "removed") {
+    cor.df <- cor.df %>% 
+          filter(var1_selected == "removed")
+  }
+  
+  cor.df <- cor.df[order(cor.df$Var1), ]
+  
+  cor.table <- cor.df %>%
+    datatable(options = list())
+  
+  return(cor.table)
+  
+}
+```
 
-removed_imp0_plot <- ggplot(removed_summary0, aes(x = importance, y = reorder(variable, importance), fill = selected)) +
-  geom_col() +
-  labs(x = "Preliminary Importance", y = "Variable")
+```{r plot_removed_imp_function}
+plot_removed_imp <- function(clim) {
+  
+  removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
+                             aes(x = importance, y = reorder(variable, importance), fill = selected)) +
+    geom_col() + labs(x = "Preliminary Importance", y = "Variable")
+  
+  return(removed_imp_plot)
+  
+}
+```
 
-removed_vif0_plot <- ggplot(removed_summary0, aes(x = vif, y = reorder(variable, vif), fill = selected)) +
-  geom_col() +
-  labs(x = "Variable Inflation Factor", y = "Variable")
+```{r plot_removed_vif_function}
+plot_removed_vif <- function(clim) {
+  
+  removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
+                              aes(x = vif, y = reorder(variable, vif), fill = selected)) + 
+    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable")
+  
+  return(removed_vif_plot)
+  
+}
+```
 
-removed_pairs_plot <- GGally::ggpairs(removed_corr0)
+```{r summarize_removed_vars_clim0}
+summarize_removed_vars(clim = 0, table = TRUE)
+summarize_cor(clim = 0, selected_removed = "removed")
+plot_removed_imp(clim = 0)
+plot_removed_vif(clim = 0)
+```
 
-removed_summary0 %>%
-  select(-importance) %>% 
-  kable(caption = "Selected and removed variables",
-                            format.args = list()) %>% 
-  kable_styling(bootstrap_options = c("striped", "hover"))
-
-removed_imp0_plot
-removed_vif0_plot
-removed_pairs_plot
+```{r summarize_removed_vars_clim2}
+summarize_removed_vars(clim = 2, table = TRUE)
+summarize_cor(clim = 2, selected_removed = "removed")
+plot_removed_imp(clim = 2)
+plot_removed_vif(clim = 2)
 ```
 
 # Feature Importance
