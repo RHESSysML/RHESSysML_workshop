@@ -95,7 +95,39 @@ for (column in factor_vars) {
 }
 ```
 
-Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. Since this data set contains two climate scenarios, we split these up into two data frames.
+Since temporal aggregation of the data set is critical to the results, we first create a function that allows us to dynamically select whether monthly or seasonal average temperatures are included as predictor variables.
+
+```{r aggregate_temp_function}
+aggregate_temp <- function(df, 
+                           resolution='season', 
+                           winter=c(12, 1, 2, 3),
+                           spring=c(4, 5),
+                           summer=c(6, 7, 8, 9),
+                           fall=c(10, 11)) {
+  
+  if (resolution == 'month') {
+    months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
+    for (i in seq_along(months)) {
+      column_name <- paste0(months[i], '_tavg')
+      df_temp_agg[[column_name]] <- mean(df_temp_agg$tavg[df_temp_agg$month == i])
+    }
+  }
+  
+  if (resolution == 'season') {
+    df_temp_agg <- df %>%
+      mutate(winter_tavg = mean(tavg[month %in% (winter)]),
+             spring_tavg = mean(tavg[month %in% (spring)]),
+             summer_tavg = mean(tavg[month %in% (summer)]),
+             fall_tavg = mean(tavg[month %in% (fall)])) 
+  }
+  
+  return(df_temp_agg)
+  
+  warning("If the season arguments are left blank, this function defaults to winter=c(12, 1, 2, 3), spring=c(4, 5), summer=c(6, 7, 8, 9), fall=c(10, 11)")
+}
+```
+
+Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. 
 
 ```{r prepare_data}
 # Convert categorical variables to factors
@@ -109,43 +141,7 @@ df_wy <- df %>%
 # Group by chosen columns
 df_wy <- df_wy %>%   
   group_by(across(all_of(group_cols)))
-```
 
-```{r aggregate_temp_function}
-aggregate_temp <- function(df,
-                           resolution='season',
-                           winter=c(12, 1, 2, 3),
-                           spring=c(4, 5),
-                           summer=c(6, 7, 8, 9),
-                           fall=c(10, 11)) {
-  
-  if (resolution == 'month') {
-  
-  months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-    
-    for (i in seq_along(months)) {
-      column_name <- paste0(months[i], '_tavg')
-      df_temp_agg[[column_name]] <- mean(df_temp_agg$tavg[df_temp_agg$month == i])
-    }
-  }
-  
-  if (resolution == 'season') {
-
-    df_temp_agg <- df %>%
-      mutate(winter_tavg = mean(tavg[month %in% (winter)]),
-             spring_tavg = mean(tavg[month %in% (spring)]),
-             summer_tavg = mean(tavg[month %in% (summer)]),
-             fall_tavg = mean(tavg[month %in% (fall)])) 
-  }
-  
-  return(df_temp_agg)
-  
-  warning("If the season arguments are left blank, this function defaults to 
-        winter=c(12, 1, 2, 3), spring=c(4, 5), summer=c(6, 7, 8, 9), fall=c(10, 11)")
-}
-```
-
-```{r prepare data cont.}
 # Aggregate average temperatures
 df_wy <- aggregate_temp(df_wy, 'season')
 
@@ -160,11 +156,15 @@ df_wy <- df_wy %>%
 df_wy <- df_wy %>% 
   rename("response" = response_var)
 
-# Reorder response variables first and remove any unwanted variables (manually?)
+# Reorder response variables first and remove any unwanted variables
 df_wy <- df_wy %>% 
   select(response, everything()) %>%
   select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
+```
 
+Since this data set contains two climate scenarios, we split these up into two data frames.
+
+```{r split_data}
 # Create data frame with only climate scenario 0
 df_wy0 <- df_wy %>% 
   filter(clim==0) %>% 
