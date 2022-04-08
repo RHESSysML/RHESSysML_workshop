@@ -407,7 +407,9 @@ Now, the data frames are adequately prepared to determine predictor feature impo
 
 ### Hyper-Parameter Tuning
 
-A primary advantage of using a random forest model is that there is relatively little hyper-parameter tuning needed. Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
+Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
+
+The function below creates a vector of accuracy results of random forests using different values for `mtry`.
 
 ```{r tuning_function}
 df_wy0_reduced <- as.data.frame(df_wy0_reduced)
@@ -426,12 +428,11 @@ tune_rf_model <- function(df) {
   }
   
   return(tuning)
-  
-  # bestmtry <- match(min(tuning), tuning)
-  # return(bestmtry)
 }
 
 ```
+
+Next, we run the function for both climate scenario data sets and visualize the results.
 
 ```{r tune_rf_wy0, warning=FALSE}
 set.seed(4326)
@@ -463,6 +464,8 @@ ggplot(data=as.data.frame(mtry2), aes(x=1:length(mtry2), y=mtry2)) +
        title=paste0("The best mtry value for ", deparse(substitute(df_wy2_reduced)), " is ", bestmtry2))
 ```
 
+The best `mtry` value for each data set is used for the respective random forest model below.
+
 ### Random Forest Models
 
 ```{r get_random_forests}
@@ -473,6 +476,8 @@ rf_wy0 <- train(x=df_wy0_reduced %>% select(!response),
                 ntree=500,
                 importance=TRUE,
                 replace=TRUE,
+                keep.forest=TRUE,  # necessary for permimp
+                keep.inbag=TRUE,  # necessary for permimp
                 trControl=trainControl(method="none", seed=4326))
 
 rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
@@ -482,8 +487,20 @@ rf_wy2 <- train(x=df_wy2_reduced %>% select(!response),
                 ntree=500,
                 importance=TRUE,
                 replace=TRUE,
+                keep.forest=TRUE,  # necessary for permimp
+                keep.inbag=TRUE,  # necessary for permimp
                 trControl=trainControl(method="none", seed=4326))
 ```
+
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). These, as well as other variable importance measurements, are further explained at the end of this document.
+
+To measure variable importance, we instead use permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps...
+
+1. For each tree, record the prediction accuracy (mean squared error) on the out-of-bag data.
+
+2. Repeat after permuting each predictor variable.
+
+3. Calculate the difference between the two accuracy measurements and average over all trees, normalizing by standard error.
 
 ```{r variable_importance}
 imp_wy0 <- varImp(rf_wy0$finalModel, scale=FALSE) %>% 
@@ -596,8 +613,6 @@ importance_plots <- wy0_plot + wy2_plot
 ggsave(importance_plots, filename = "importance_plots.png", path = here("shiny", "www"))
 ```
 
-
-
 ## Previewing relationships between important predictors and NPP
 
 The variable importance values derived from our random forest model allow us to investigate intriguing relationships between variables that have been identified as having greater importance.
@@ -701,7 +716,7 @@ plot_predict_interaction(rf_wy0$finalModel, df_wy0_reduced,
 
 ## Comparison with other measures of importance
 
-The capstone team chose to use conditional permutation importance above as our main representation of importance. However there are other potential methods of determining relative importance from random forest models that are demonstrated below. Note that the interpretation of these measures, as discussed in the original justification of using the `permimp` package, is limited due to characteristics of RHESSys data. Namely, the presence of both categorical and continuous variables, differing number of classes in categorical variables, differing scales of numeric variables, and potential remaining multicollinearity all have greater potential to skew the results of the methods below.
+The capstone team chose to use permutation importance above as our main representation of importance. However there are other potential methods of determining relative importance from random forest models that are demonstrated below. Note that the interpretation of these measures, as discussed in the original justification of using permutation importance, is limited due to characteristics of RHESSys data. Namely, the presence of both categorical and continuous variables, differing number of classes in categorical variables, differing scales of numeric variables, and potential remaining multicollinearity all have greater potential to skew the results of the methods below.
 
 The plot below presents the top 10 variables using % mean decrease in accuracy (%IncMSE) and mean decrease in node impurity (IncNodePurity). %IncMSE is computed from permuting the out-of-bag data, while IncNodePurity is the mean total decrease in node impurities from splitting on the given variable, as measured by the residual sum of squares.
 
@@ -718,7 +733,7 @@ plot_min_depth_distribution(min_depth_frame,
                             mean_sample="relevant_trees")
 ```
 
-Lastly, SHAP values allow visualization of the direction of these relationships.
+SHAP values allow visualization of the direction of these relationships.
 
 ```{r}
 library(fastshap)
@@ -730,25 +745,10 @@ explain0 <- explain(object=rf_wy0$finalModel,
 autoplot(explain0, type="contribution", feature="npp")
 ```
 
-## 
+Lastly, while permutation importance is an appropriate measurement for this use case and many models beyond just random forest, this approach has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. Previously, this bias was addressed by removing highly correlated variables from the data sets.
 
-# References
-
-Cutler, D. Richard, Thomas C. Edwards, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. 2007. "Random Forests for Classification in Ecology." *Ecology* 88 (11): 2783--92. <https://doi.org/10.1890/07-0539.1>.
-
-Debeer, Dries, and Carolin Strobl. 2020. "Conditional Permutation Importance Revisited." *BMC Bioinformatics* 21 (1): 307. <https://doi.org/10.1186/s12859-020-03622-2>.
-
-Prasad, Anantha M., Louis R. Iverson, and Andy Liaw. 2006. "Newer Classification and Regression Tree Techniques: Bagging and Random Forests for Ecological Prediction." *Ecosystems* 9 (2): 181--99. <https://doi.org/10.1007/s10021-005-0054-1>.
-
-Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
-
-Strobl, Carolin, Anne-Laure Boulesteix, Thomas Kneib, Thomas Augustin, and Achim Zeileis. 2008. "Conditional Variable Importance for Random Forests." *BMC Bioinformatics* 9 (1): 307. <https://doi.org/10.1186/1471-2105-9-307>.
-
-
-Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Permutation importance is another measure that is applied to many model types including random forest---this approach, however, has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package.
-
-```{r permimp_graveyard, warning=FALSE}
-# imp_wy0 <- permimp(rf0_obj, do_check=FALSE, progressBar=FALSE)
+```{r permimp, warning=FALSE}
+# imp_wy0 <- permimp(rf_wy0$finalModel, do_check=FALSE, progressBar=FALSE)
 # 
 # imp_wy2 <- permimp(rf_wy2$finalModel, do_check=FALSE, progressBar=FALSE)
 
@@ -775,3 +775,15 @@ Assessing feature importance is a complex task with many possible approaches. Tr
 #          y="Variable")
 # }
 ```
+
+# References
+
+Cutler, D. Richard, Thomas C. Edwards, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. 2007. "Random Forests for Classification in Ecology." *Ecology* 88 (11): 2783--92. <https://doi.org/10.1890/07-0539.1>.
+
+Debeer, Dries, and Carolin Strobl. 2020. "Conditional Permutation Importance Revisited." *BMC Bioinformatics* 21 (1): 307. <https://doi.org/10.1186/s12859-020-03622-2>.
+
+Prasad, Anantha M., Louis R. Iverson, and Andy Liaw. 2006. "Newer Classification and Regression Tree Techniques: Bagging and Random Forests for Ecological Prediction." *Ecosystems* 9 (2): 181--99. <https://doi.org/10.1007/s10021-005-0054-1>.
+
+Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
+
+Strobl, Carolin, Anne-Laure Boulesteix, Thomas Kneib, Thomas Augustin, and Achim Zeileis. 2008. "Conditional Variable Importance for Random Forests." *BMC Bioinformatics* 9 (1): 307. <https://doi.org/10.1186/1471-2105-9-307>.
