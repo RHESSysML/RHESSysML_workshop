@@ -126,15 +126,8 @@ xgb_matrix_test_x <- test_set %>%
 
 ```
 
-```{r Cross-validation, message=FALSE}
-# Using the caret package to do 10-fold cross-validation
-train_control = caret::trainControl(method = "cv", number = 10)
 
-xg_model_caret = train(npp~., data = df_wy, method = "xgbTree", trControl = train_control)
-```
-
-
-## Gradient Boosting Model
+# Gradient Boosting Model
 
 ### Specify hyperparameters 
 
@@ -204,15 +197,68 @@ xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
 
 ```
 
-## Caret Package
+# Caret Package
+
+```{r Cross-validation, message=FALSE, warning=FALSE}
+# some shenanigans to get the seed into the right shape to work with 10-fold cross-validation
+s = 4326
+seed = list()
+
+for (i in 1:10) {
+  seed[[i]] <- rep(s, 36)
+}
+
+seed[[11]] = 4326
+
+# Using the caret package to do 10-fold cross-validation
+train_control = caret::trainControl(method = "cv", number = 10, seed = seed)
+
+gb_model0_caret = train(npp~., data = df_wy0, method = "xgbTree", trControl = train_control)
+gb_model2_caret = train(npp~., data = df_wy2, method = "xgbTree", trControl = train_control)
+```
+
+We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
+
+ - `nrounds` (# Boosting Iterations)
+ - `max_depth` (Max Tree Depth)
+ - `eta` (Shrinkage)
+ - `gamma` (Minimum Loss Reduction)
+ - `colsample_bytree` (Subsample Ratio of Columns)
+ - `min_child_weight` (Minimum Sum of Instance Weight)
+ - `subsample` (Subsample Percentage)
 
 ```{r}
-c_imp = varImp(xg_model_caret, scale = FALSE)
-list_imp = c_imp$importance
-list_imp = list_imp %>% mutate(variable = row.names(list_imp)) %>% 
-  filter(list_imp$Overall != 0)
+params0 = gb_model0_caret$bestTune
+params2 = gb_model2_caret$bestTune
+```
 
-ggplot(data = list_imp, aes(x=Overall, y=variable)) + geom_col()
+In the interest of efficiency, we can look at how long it took each model to train:
+
+```{r}
+# Random Forest models:
+
+# Gradient Boosting Models:
+gb_model0_caret$times
+gb_model2_caret$times
+```
+
+Find variable importance:
+
+```{r}
+c0_imp = varImp(gb_model0_caret, scale = FALSE)
+list_imp0 = c0_imp$importance
+list_imp0 = list_imp0 %>% mutate(variable = row.names(list_imp0)) %>% 
+  filter(list_imp0$Overall != 0)
+
+c2_imp = varImp(gb_model0_caret, scale = FALSE)
+list_imp2 = c2_imp$importance
+list_imp2 = list_imp2 %>% mutate(variable = row.names(list_imp2)) %>% 
+  filter(list_imp2$Overall != 0)
+```
+
+
+```{r}
+ggplot(data = list_imp0, aes(x=Overall, y=variable)) + geom_col()
 ```
 
 Can see that we are getting different top 3 between `xgboost` and `caret`, even within gradient boosting. Need to check stuff like defaults (gamma value? dealing with categoricals is clearly different? Also did 10-fold with caret but not with xgb.)
