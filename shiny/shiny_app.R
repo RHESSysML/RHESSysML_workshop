@@ -18,6 +18,8 @@ setwd(here())
 
 ########## Get the datasets from the feature importance workflow
 
+# Raw dataset
+df <- read.csv(here("data", "sageres.csv"))
 # Main aggregated dataset
 df_wy <- read.csv(here("shiny", "aggregated_datasets", "df_wy.csv"))
 # Aggregated dataset for climate scenario 0
@@ -25,9 +27,11 @@ df_wy0 <- read.csv(here("shiny", "aggregated_datasets", "df_wy0.csv"))
 # Aggregated dataset for climate scenario 2
 df_wy2 <- read.csv(here("shiny", "aggregated_datasets", "df_wy2.csv"))
 
+all_datasets <- c("df", "df_wy", "df_wy0", "df_wy2")
+
 ########## User Inputs
 factor_vars <- c("stratumID", "scen", "topo")
-response_var <- colnames(df_wy[1])
+response_var <- df_wy$response
 
 # Convert categorical variables to factors
 df_wy[,factor_vars] <- lapply(df_wy[,factor_vars], factor)
@@ -39,8 +43,6 @@ df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 
 metadata <- read.csv(here("shiny", "aggregated_datasets", "metadata.csv")) %>% 
   select("variable", "full_name", "description")
-# metadata_table <- kable(metadata) %>% 
-#   kable_styling(bootstrap_options = c("striped", "hover"))
 
 ######### Text for the welcome page
 
@@ -49,11 +51,22 @@ welcome <- "Welcome to the RHESSys Interpretation App. Use this app to explore y
 intro_1 <- "- The \"Variable Importance\" tab will display the output from our machine learning workflows. If you have not gone through the machine learning workflows, we recommend doing that first. They can be found on the RHESSys Github Wiki." 
 
 intro_2 <- "- The \"Visualizations\" tab will allow you explore your data's variables and their relationships." 
-intro_3 <- "- Use the \"Metadata\" tab to learn more about each variable within your dataset."
+
+intro_3 <- "- Use the \"Metadata\" tab to learn more about each variable within your dataset. To add or remove variables specific to your dataset, you can do so using the metadata.Rmd file included within the github repo."
+
+intro_4 <- "- The \"Dataset Viewer\" tab allows you to view your datasets, both raw and aggregated."
 
 importance_caption <- "The above graphs uses the random forest workflow to rank how important each varible is in predicting your responce variable, in this case Net Primary Productivity. The graph on the left ranks the variables in a normal climate scenario, and the graph on the right ranks the variables in a +2 degree C cliamte warming scenario."
 
 ########## Inputs
+
+dataset_sel <- selectInput(inputId = "dataset_sel",
+                           label = tags$h4("Select your dataset to view:"),
+                           choices = c("Raw Data",
+                                       "Aggregated Data",
+                                       "Aggregated Data (Normal Climate)",
+                                       "Aggregated Data (+2 Degree C Climate)"),
+                           selected = "Aggregated Data")
 
 stratum_sel <- checkboxGroupInput("stratum_sel",
                                   label = tags$h4("Select desired stratum to look at:"),
@@ -80,7 +93,9 @@ wy_sel <- sliderInput("wy_sel",
                       label = tags$h4("Select water year range:"),
                       min = min(df_wy$wy),
                       max = max(df_wy$wy),
-                      value = c(min(df_wy$wy), max(df_wy$wy)))
+                      value = c(min(df_wy$wy), max(df_wy$wy)),
+                      sep = "",
+                      step = 1)
 
 dependent_variable <- varSelectInput(inputId = "dependent_variable",
                                     label = tags$h4("Select your dependent variable:"),
@@ -100,7 +115,7 @@ facet_variable <- varSelectInput(inputId = "facet_variable",
 quantile_slider <- sliderInput("quantile_sel",
                                label = tags$h4("How many quantiles to facet?"),
                                min = 1,
-                               max = 10,
+                               max = 9,
                                value = 1)
 
 ########## Create UI
@@ -114,15 +129,20 @@ ui <- fluidPage(
              tabPanel("Welcome!",
                       tags$h2(welcome),
                       tags$h2(intro_3),
+                      tags$h2(intro_4),
                       tags$h2(intro_1),
                       tags$h2(intro_2),
                       img(src = "RHESSys_logo_V2.png", height = 450, width = 450)),
              tabPanel("Metadata",
                       tags$h3("Explore the metadata:"),
                       DT::dataTableOutput("metadata_DT")),
+             tabPanel("Dataset Viewer",
+                      tags$h3("View your datasets:"),
+                      dataset_sel,
+                      DT::dataTableOutput("datatable_viewer")),
              tabPanel("Variable Importance",
                       tags$h3("Random Forest Variable Importance Output:"),
-                      tags$h4("Your Responce Variable: Net Primary Productivity (NPP)"),
+                      tags$h4("Your Response Variable: Net Primary Productivity (NPP)"),
                       img(src = "importance_plots.png", height = 800, width = 800),
                       tags$h6(importance_caption)),
              tabPanel("Visualizations",
@@ -131,7 +151,6 @@ ui <- fluidPage(
                                    clim_sel,
                                    wy_sel,
                                    "Varibles to Explore:",
-                                   dependent_variable,
                                    independent_variable,
                                    facet_variable,
                                    quantile_slider),
@@ -142,6 +161,16 @@ ui <- fluidPage(
 
 ########## Create a server
 server <- function(input, output) {
+  
+  data_display <- reactive({
+    
+    switch(input$dataset_sel,
+           "Raw Data" = df,
+           "Aggregated Data" = df_wy,
+           "Aggregated Data (Normal Climate)" = df_wy0,
+           "Aggregated Data (+2 Degree C Climate)" = df_wy2)
+    
+  })
   
   # Create a reactive dataframe
   df_wy_reactive <- reactive({
@@ -154,17 +183,18 @@ server <- function(input, output) {
   })
   
   output$variable_plot <- renderPlot({
-    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = !!input$dependent_variable)) +
+    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = response)) +
       geom_point(aes(color = clim)) +
       geom_smooth(se = FALSE, method = lm, color = "#B251F1") +
       scale_color_manual(values = c("0" = "#FEA346", 
                                     "2" = "#4BA4A4")) +
       labs(color = "Climate Scenario") +
-      facet_wrap(~ quantile, dir = "v") +
+      facet_wrap(~ quantile) +
       theme(text = element_text(size = 17))
   })
   
   output$metadata_DT <- DT::renderDataTable({
+    
     DT::datatable(metadata,
                   options = list(pageLength = 30,
                                 initComplete = JS(
@@ -175,6 +205,22 @@ server <- function(input, output) {
                                          'Table : ', 
                                          tags$em('Metadata'),
                                          color = "white"))
+    
+  })
+  
+  output$datatable_viewer <- DT::renderDataTable({
+    
+    DT::datatable(data_display(),
+                  options = list(pageLength = 15,
+                                 initComplete = JS(
+                                   "function(settings, json) {",
+                                   "$(this.api().table().header()).css({'color': '#FFFFFF'});",
+                                   "}")),
+                  caption = tags$caption(style = 'caption-side: top; text-align: left; color: white', 
+                                         'Table : ',
+                                         tags$em('Dataset'),
+                                         color = 'white'))
+    
   })
   
 }
