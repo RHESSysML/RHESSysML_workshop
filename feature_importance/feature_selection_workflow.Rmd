@@ -588,6 +588,15 @@ imp_wy2 <- varImp(rf_wy2$finalModel, scale = FALSE) %>%
   mutate(Rank = rank(-Overall))
 ```
 
+Save the above importance dataframes to be used in the shiny app.
+
+```{r}
+# This will export the importance rank datasets as csv files to be used in the shiny app. However, once again we will leave this commented out so that it doesn't export new csv files every time the workflow runs.
+
+# write.csv(imp_wy0, file = here("shiny", "aggregated_datasets", "imp_wy0.csv"), row.names = FALSE)
+# write.csv(imp_wy2, file = here("shiny", "aggregated_datasets", "imp_wy2.csv"), row.names = FALSE)
+```
+
 
 # Model Evaluation
 
