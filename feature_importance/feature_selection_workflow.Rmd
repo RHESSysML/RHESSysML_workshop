@@ -247,18 +247,18 @@ First, we create data frames containing only the predictor variables to assist w
 
 ```{r get_predictors}
 # Save data frames of predictor variables for first climate scenario
-num_preds.df_wy0 <- df_wy0 %>% 
+df_wy0_num_preds <- df_wy0 %>% 
   select(!response & where(is.numeric))
 
-factor_preds.df_wy0 <- df_wy0 %>% 
+df_wy0_fpreds <- df_wy0 %>% 
   select(!response & where(is.factor)) %>% 
   colnames()
 
 # Save data frames of predictor variables for second climate scenario
-num_preds.df_wy2 <- df_wy2 %>% 
+df_wy2_num_preds <- df_wy2 %>% 
   select(!response & where(is.numeric))
 
-factor_preds.df_wy2 <- df_wy2 %>% 
+df_wy2_fpreds <- df_wy2 %>% 
   select(!response & where(is.factor)) %>% 
   colnames()
 ```
@@ -268,8 +268,8 @@ Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficien
 ```{r manual_preference_order}
 # Preference order can be determined manually for variables of interest:
 
-#preference.order0 <- c("precip", "rz_storage", "trans", "evap")
-#preference.order2 <- c("precip", "rz_storage", "trans", "evap")
+#pref_order0 <- c("precip", "rz_storage", "trans", "evap")
+#pref_order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
 
@@ -285,7 +285,7 @@ imp0 <- train(x = df_wy0 %>% select(!response),
               trControl = trainControl(method = "none", seed = 4326))
 
 # Set preference order based on variable importance
-preference.order0 <- varImp(imp0$finalModel, scale = FALSE) %>% 
+pref_order0 <- varImp(imp0$finalModel, scale = FALSE) %>% 
   arrange(-Overall) %>% 
   rownames()
 
@@ -300,14 +300,14 @@ imp2 <- train(x = df_wy2 %>% select(!response),
               trControl = trainControl(method = "none", seed = 4326))
 
 # Set preference order based on variable importance
-preference.order2 <- varImp(imp2$finalModel, scale = FALSE) %>% 
+pref_order2 <- varImp(imp2$finalModel, scale = FALSE) %>% 
   arrange(-Overall) %>% 
   rownames()
 ```
 
 ```{r create_correlation_functions}
 # Remove variables based on VIF and Correlation thresholds
-remove_vif <- function(predictors.df, vif.threshold = 5, preference.order = preference.order0) {
+remove_vif <- function(predictors.df, vif.threshold = 5, preference.order = pref_order0) {
   if (!(class(vif.threshold) %in% c("numeric"))) {
     stop("VIF threshold must be numeric.")
   }
@@ -322,7 +322,7 @@ remove_vif <- function(predictors.df, vif.threshold = 5, preference.order = pref
   return(variable.selection)
 }
 
-remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = preference.order0) {
+remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = pref_order0) {
   if (!(class(cor.threshold) %in% c("numeric"))) {
     stop("Correlation threshold must be numeric.")
   }
@@ -342,20 +342,20 @@ Thresholds for VIF and correlation can be set using the function below, with def
 
 ```{r remove_multicollinearity, warning = FALSE}
 # Create list of selected variables
-wy0_vif <- remove_vif(num_preds.df_wy0, vif.threshold = 5, preference.order0)$selected.variables
-wy0_cor <- remove_cor(num_preds.df_wy0, cor.threshold = 0.75, preference.order0)$selected.variables
+wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = 5, pref_order0)$selected.variables
+wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = 0.75, pref_order0)$selected.variables
 wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
 
-wy2_vif <- remove_vif(num_preds.df_wy2, vif.threshold = 5, preference.order2)$selected.variables
-wy2_cor <- remove_cor(num_preds.df_wy2, cor.threshold = 0.75, preference.order2)$selected.variables
+wy2_vif <- remove_vif(df_wy2_num_preds, vif.threshold = 5, pref_order2)$selected.variables
+wy2_cor <- remove_cor(df_wy2_num_preds, cor.threshold = 0.75, pref_order2)$selected.variables
 wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
 df_wy0_reduced <- df_wy0 %>% 
-  select(c(response, all_of(factor_preds.df_wy0), all_of(wy0_select_variables)))
+  select(c(response, all_of(df_wy0_fpreds), all_of(wy0_select_variables)))
 
 df_wy2_reduced <- df_wy2 %>% 
-  select(c(response, all_of(factor_preds.df_wy2), all_of(wy2_select_variables)))
+  select(c(response, all_of(df_wy2_fpreds), all_of(wy2_select_variables)))
 ```
 
 ## Summary of Removed Variables
@@ -610,19 +610,19 @@ The model for the +2 degree Celsius climate scenario explained 88.05% of varianc
 Next, we can implement a permutation test cross-validation for the random forest models. The statistics are based on prediction error on the withheld data.
 
 ```{r}
-allpredictors.df_wy0_reduced <- df_wy0_reduced %>% 
+df_wy0_reduced_allpredictors <- df_wy0_reduced %>% 
   select(!response)
 
-rf.crossValidation(x = rf_wy0$finalModel, xdata = allpredictors.df_wy0_reduced, p = 0.1, n = 10)
+rf.crossValidation(x = rf_wy0$finalModel, xdata = df_wy0_reduced_allpredictors, p = 0.1, n = 10)
 ```
 
 The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains 89.68% of the variance in NPP. This result is 0.66% lower than our original fit % explained.
 
 ```{r}
-allpredictors.df_wy2_reduced <- df_wy2_reduced %>% 
+df_wy2_reduced_allpredictors <- df_wy2_reduced %>% 
   select(!response)
 
-rf.crossValidation(x = rf_wy2$finalModel, xdata = allpredictors.df_wy2_reduced, p = 0.1, n = 10)
+rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
 ```
 
 The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains 86.99% of the variance in NPP. This result is 1.06% lower than our original fit % explained.
@@ -760,7 +760,7 @@ Variable interactions can be investigated in many ways. The bivariate partial de
 
 ```{r}
 bivariate.partialDependence(x = rf_wy0$finalModel,
-                            pred.data = allpredictors.df_wy0_reduced,
+                            pred.data = df_wy0_reduced_allpredictors,
                             v1 = "lai",
                             v2 = "precip",
                             grid.size = 15,
