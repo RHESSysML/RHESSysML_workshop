@@ -785,9 +785,9 @@ Variable interactions between two predictors and the corresponding NPP predictio
 Below, the x-axis represents values of `rz_storage` , y-axis represents values of `precip` , and the cell colors/values represent predicted values of `npp` , with red indicating high and blue indicating low. For this interaction, we can see that high values of precipitation and root-zone storage result in higher predictions of NPP. This is only true for root zone storage given high precipitation, while high precipitation at all levels of root zone storage predicts relatively higher NPP. This is another indicator that it is an important predictor.
 
 ```{r}
-plot_predict_interaction(rf_wy0$finalModel, df_wy0_reduced, 
-                         "rz_storage", "precip",
-                         grid = 50) # smaller grid values reveal more general relationships
+# plot_predict_interaction(rf_wy0$finalModel, df_wy0_reduced, 
+#                          "rz_storage", "precip",
+#                          grid = 50) # smaller grid values reveal more general relationships
 ```
 
 ## Comparison with other measures of importance
