@@ -245,20 +245,27 @@ gb_model2_caret$times
 Find variable importance:
 
 ```{r}
+# might try with `gbm` instead of `xgb` to be compatible with varImp()?
+
+
 c0_imp = varImp(gb_model0_caret, scale = FALSE)
 list_imp0 = c0_imp$importance
-list_imp0 = list_imp0 %>% mutate(variable = row.names(list_imp0)) %>% 
+list_imp0 = list_imp0 %>% mutate(Variable = row.names(list_imp0)) %>% 
   filter(list_imp0$Overall != 0)
 
 c2_imp = varImp(gb_model0_caret, scale = FALSE)
 list_imp2 = c2_imp$importance
-list_imp2 = list_imp2 %>% mutate(variable = row.names(list_imp2)) %>% 
+list_imp2 = list_imp2 %>% mutate(Variable = row.names(list_imp2)) %>% 
   filter(list_imp2$Overall != 0)
 ```
 
 
 ```{r}
-ggplot(data = list_imp0, aes(x=Overall, y=variable)) + geom_col()
+# using plotting function from rf workflow
+wy0_plot <- plot_imp(list_imp0)
+wy2_plot <- plot_imp(list_imp2)
+
+wy0_plot + wy2_plot 
 ```
 
 Can see that we are getting different top 3 between `xgboost` and `caret`, even within gradient boosting. Need to check stuff like defaults (gamma value? dealing with categoricals is clearly different? Also did 10-fold with caret but not with xgb.)
