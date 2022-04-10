@@ -155,7 +155,7 @@ ui <- fluidPage(
                                    facet_variable,
                                    quantile_slider),
                       mainPanel("Visual Graph of your variable relationships:",
-                                plotOutput(outputId = "variable_plot", height = 700))),
+                                plotOutput(outputId = "variable_plot", height = 700)))
   )
 )
 
