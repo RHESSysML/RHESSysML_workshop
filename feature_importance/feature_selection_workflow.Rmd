@@ -405,7 +405,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
 ```{r summarize_cor_function}
 summarize_cor <- function(clim, selected_removed) {
   
-  num_preds.df <-  get(paste0("num_preds.df_wy", clim))
+  num_preds.df <-  get(paste0("df_wy", clim, "_num_preds"))
   cor_matrix <- cor(num_preds.df)
   select_variables <- get(paste0("wy", clim, "_select_variables"))
 
