@@ -4,6 +4,8 @@ author: "RHESSysML Capstone Group"
 date: "2/5/2022"
 output: 
   rmarkdown::html_document:
+    toc: true
+    toc_float: true
     theme: cerulean
 ---
 
