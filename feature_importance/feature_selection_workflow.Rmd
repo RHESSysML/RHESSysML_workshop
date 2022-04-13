@@ -359,7 +359,7 @@ remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = p
 }
 ```
 
-Thresholds for VIF and correlation can be set using the function below, with default values of 5 and 0.75, respectively.
+Thresholds for VIF and correlation can be set using the function below, with default values of 5 and 0.75, respectively. The thresholds can be adjusted here. Increasing the thresholds will reduce the number of variables that get removed, but it will increase the likelihood that collinearity influences the results.
 
 ```{r set_thresholds}
 vif.threshold = 5
