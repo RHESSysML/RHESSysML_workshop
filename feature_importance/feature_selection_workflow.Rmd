@@ -4,6 +4,8 @@ author: "RHESSysML Capstone Group"
 date: "2/5/2022"
 output: 
   rmarkdown::html_document:
+    toc: true
+    toc_float: true
     theme: cerulean
 ---
 
@@ -15,7 +17,7 @@ The following research question will be addressed in this process: **What are th
 
 # Setup
 
-```{r setup, include = FALSE}
+```{r setup, include = TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 
 options(scipen = 999)
@@ -61,13 +63,13 @@ First, RHESSys output will need to be aggregated and cleaned based on specific r
 
 4.  Creating derived variables (i.e. Peak SWE).
 
-The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable. Change the inputs below to apply to your dataset in whatever way necessary. 
+This workflow assumes that the data are aggregated by water year. The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable. Change the inputs below to apply to your dataset in whatever way necessary (you might want to include variables that  differentiate the conditions used for a single RHESSys simulation -  examples might be treatment type, location, climate model scenario). 
 
 The `group_cols` object selects the columns that the user wants the raw dataset to be aggregated by. 
 
-The `factor_vars` object are the predictor variables that will be converted to class factor, which allows the random forest workflow to function. Any predictor variables that should be factors instead of class numeric or character should be converted. (Example: stratumID is class numeric, but because there are 6 different strata, it makes more sense for them to be class factor.)
+The `factor_vars` object are the predictor variables that will be converted to factors, which allows the random forest workflow to function. Any predictor variables that should be factors instead of numeric or character should be converted. (Example: stratumID is numeric, but because there are 6 different strata, it makes more sense for them to be factors.)
 
-The `response_var` object is the response variable that the user wants to predict. There should only be one response variable listed at a time.
+The `response_var` object is the response variable that the user wants to predict. There should only be one response variable.
 
 ```{r user_inputs}
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
@@ -405,7 +407,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
 ```{r summarize_cor_function}
 summarize_cor <- function(clim, selected_removed) {
   
-  num_preds.df <-  get(paste0("num_preds.df_wy", clim))
+  num_preds.df <-  get(paste0("df_wy", clim, "_num_preds"))
   cor_matrix <- cor(num_preds.df)
   select_variables <- get(paste0("wy", clim, "_select_variables"))
 
