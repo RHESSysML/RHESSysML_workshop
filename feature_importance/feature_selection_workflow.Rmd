@@ -98,7 +98,14 @@ for (column in factor_vars) {
 }
 ```
 
-Since temporal aggregation of the data set is critical to the results, we first create a function that allows us to dynamically select whether monthly or seasonal average temperatures are included as predictor variables.
+Since temporal aggregation of the data set is critical to the results, we first create a function that allows us to dynamically select whether monthly or seasonal average temperatures are included as predictor variables. Setting `resolution = 'season'` does seasonal average temperatures, and `resolution = 'month'` does monthly average temperatures. By default, this function is set up to do seasonal average temperatures, and the seasons are:
+
+Winter = Dec, Jan, Feb, March
+Spring = April, May
+Summer = June, July, Aug, Sep
+Fall = Oct, Nov
+
+It is possible to reassign different months to different seasons within the function as well. 
 
 ```{r aggregate_temp_function}
 aggregate_temp <- function(df, 
@@ -130,12 +137,17 @@ aggregate_temp <- function(df,
 }
 ```
 
-Next, the necessary modifications to the data set are made. For this example, we are converting factor variables, aggregating by water year, changing `slope` and `aspect` from radians to degrees, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. 
+Here is where the categorical variables from the `factor_vars` object (explained above) get converted to factors. This is necessary for the Random Forest procedure to run. 
 
-```{r prepare_data}
+```{r convert_to_factors}
 # Convert categorical variables to factors
 df[,factor_vars] <- lapply(df[,factor_vars], factor)
 
+```
+
+Next, for our example, there were some changes that needed to be made that may or may not apply to your dataset. For this example, we are changing `slope` and `aspect` from radians to degrees, aggregating by water year, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. We decided to create columns for `peak_swe` and `swe_precip_ratio` because we thought they would be important variables in determining the response variable in our example, which was net primary productivity. This code chuck is where you add your own derived variables that may be important to your analysis. If you wish to aggregate your data in a way different than in our example, this is also the code chunk to do that in.
+
+```{r prepare_data}
 # Change aspect and slope from radians to degrees
 df_wy <- df %>% 
   mutate(aspect = aspect*(180/pi),
@@ -145,7 +157,7 @@ df_wy <- df %>%
 df_wy <- df_wy %>%   
   group_by(across(all_of(group_cols)))
 
-# Aggregate average temperatures
+# Aggregate average temperatures using the aggregate_temp() function defined above.
 df_wy <- aggregate_temp(df_wy, 'season')
 
 # Create features for peak swe and the peak_swe/precip ratio
@@ -181,7 +193,7 @@ df_wy2 <- df_wy %>%
 
 Now, we have two data tables representing the two climate scenarios.
 
-Here we'll save the newly aggregated datesets to be automatically uploaded to the Shiny App.
+Along with this workflow, this repo also contains a Shiny App. The Shiny App can be used post-analysis to graph some of the relationships that are identified within this feature selection workflow. Here we'll save the newly aggregated datesets to be automatically exported into the Shiny App.
 
 ```{r}
 # For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
@@ -217,7 +229,7 @@ summarize_data(df_wy0)
 summarize_data(df_wy2)
 ```
 
-We can also look at the key study area characteristics. In this study, there are six study areas.
+We can also look at the key study area characteristics. In this study, there are six study areas where RHESSys was run.
 
 ```{r describe_strata}
 strata <- df_wy %>%
