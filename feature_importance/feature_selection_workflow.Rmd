@@ -349,14 +349,19 @@ remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = p
 
 Thresholds for VIF and correlation can be set using the function below, with default values of 5 and 0.75, respectively.
 
+```{r set_thresholds}
+vif.threshold = 5
+cor.threshold = 0.75
+```
+
 ```{r remove_multicollinearity, warning = FALSE}
 # Create list of selected variables
-wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = 5, pref_order0)$selected.variables
-wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = 0.75, pref_order0)$selected.variables
+wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = vif.threshold, pref_order0)$selected.variables
+wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = cor.threshold, pref_order0)$selected.variables
 wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
 
-wy2_vif <- remove_vif(df_wy2_num_preds, vif.threshold = 5, pref_order2)$selected.variables
-wy2_cor <- remove_cor(df_wy2_num_preds, cor.threshold = 0.75, pref_order2)$selected.variables
+wy2_vif <- remove_vif(df_wy2_num_preds, vif.threshold = vif.threshold, pref_order2)$selected.variables
+wy2_cor <- remove_cor(df_wy2_num_preds, cor.threshold = cor.threshold, pref_order2)$selected.variables
 wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
 
 # Remove numeric variables with multicollinearity
