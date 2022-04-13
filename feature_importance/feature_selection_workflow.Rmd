@@ -505,9 +505,11 @@ plot_removed_vif(clim = 2)
 
 # Feature Importance
 
-Now, the data frames are adequately prepared to determine predictor feature importance. In this framework, we use the Random Forest because this method has been proven to be able to make predictions and assess feature importance with a high degree of accuracy in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques.
+With multicollinearity reduced, the importance of predictor variables can be estimated using Random Forest and partial permutation importance. **MOVE THIS UP>>In this framework, we use the Random Forest because this method has been proven to be able to make predictions and assess feature importance with a high degree of accuracy in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques.**
 
 ### Hyper-Parameter Tuning
+
+An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves one hyper-parameter---which is the primary hyper-parameter that requires tuning in a Random Forest.9
 
 Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
 
@@ -534,7 +536,7 @@ tune_rf_model <- function(df) {
 
 ```
 
-Next, we run the function for both climate scenario data sets and visualize the results.
+Next, we run the function for both climate scenario data sets and visualize the results. Model error here is assessed using out-of-bag (OOB) observations in the data, which refers to observations that were not sampled during bootstrapping for the particular Random Forest being assessed. In other words OOB data were not used to train the model and can be used to test accuracy without the risk of bias incurred from model over-fitting. The best `mtry value` in the plots below will be represented by the lowest `OOB Error`.
 
 ```{r tune_rf_wy0, warning = FALSE}
 set.seed(4326)
