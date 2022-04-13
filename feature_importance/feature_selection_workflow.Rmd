@@ -265,7 +265,11 @@ df_wy2_fpreds <- df_wy2 %>%
   colnames()
 ```
 
-Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. The functions allow the user to define an order of preference for the selection of variables. Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. While highly correlated variables will not be in the correct order here, their relative importance should be reasonably accurate. The second method is used by default. 
+Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. The functions allow the user to define an order of preference for the selection of variables.
+
+Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. Note that in the preliminary random forest, highly correlated variables will not produce accurate estimates of importance. However, we assume that relative importance is reasonably accurate to support the selection between highly correlated variables. The second method is used by default. 
+
+1. Run this chunk to manually create an ordered vector of column names.
 
 ```{r manual_preference_order}
 # Preference order can be determined manually for variables of interest:
@@ -274,6 +278,7 @@ Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficien
 #pref_order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
+2. Run this chunk to allow preliminary random forest to automatically determine preference order.
 
 ```{r auto_preference_order}
 # First climate scenario
