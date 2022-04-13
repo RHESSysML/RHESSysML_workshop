@@ -243,6 +243,10 @@ DT::datatable(strata,
 
 Highly correlated predictor variables are not as much a concern in machine learning when creating a predictive model. However, for this process of assessing relative predictor variable importance, multicollinear variables have biased importance (Strobl et al. 2008). Therefore, these need to be handled prior to assessing feature importance.
 
+## Method
+
+Below, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. This is implemented using the `auto_vif()` and `auto_cor()` functions from the `spatialRF` package. 
+
 ## Identify and Remove Correlated Variables
 
 First, we create data frames containing only the predictor variables to assist with the next steps.
@@ -265,11 +269,9 @@ df_wy2_fpreds <- df_wy2 %>%
   colnames()
 ```
 
-Next, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. The functions allow the user to define an order of preference for the selection of variables.
+The `auto_vif()` and `auto_cor()` functions allow the user to define an order of preference for the selection of variables. Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. Note that in the preliminary random forest, highly correlated variables will not produce accurate estimates of importance. However, we assume that relative importance is reasonably accurate to support the selection between highly correlated variables. The second method is used by default. 
 
-Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. Note that in the preliminary random forest, highly correlated variables will not produce accurate estimates of importance. However, we assume that relative importance is reasonably accurate to support the selection between highly correlated variables. The second method is used by default. 
-
-1. Run this chunk to manually create an ordered vector of column names.
+1. Run this chunk to manually create an ordered vector of column names. The vector does not need to include the names of all predictors - only those that you would like to keep in the analysis.
 
 ```{r manual_preference_order}
 # Preference order can be determined manually for variables of interest:
