@@ -11,9 +11,13 @@ output:
 
 # Introduction
 
-The following R Markdown document describes the necessary steps to determine important relationships between predictor variables and a response variable in RHESSys model output. Specific code examples will be based on RHESSys model output from the Sagehen Creek Experimental Watershed in the Sierra Nevada, CA. The data set incorporates model parameter uncertainty, topographic spatial variability, and climate change scenarios. The data set and associated metadata can be accessed here: <https://www.hydroshare.org/resource/2a31bd57b7e74c758b7857679ffbb4c5/>.
+[RHESSys](https://github.com/RHESSys/RHESSys/wiki) output provides multiple variables that describe the response of  ecosystem biogeochemical cycling and hydrology to climate (and land use) drivers. This R Markdown document describes a workflow to apply machine learning techniques (Random Forest and Gradient Boosting) to RHESSys model output. The specific goal is to determine the most important relationships between RHESSys predictor variables and a chosen response variable in a programmatic, efficient, and reproducible manner. Permutation Importance will be our primary metric for what determines the importance of variables within each machine learning model, but additional metrics will be discussed to help you choose whether Random Forest or Gradient Boosting is a more appropriate class of model to use.
 
-The following research question will be addressed in this process: **What are the most important predictors of Net Primary Productivity in differing climate scenarios?**
+If you don’t know what Permutation Importance is right now, don’t worry! This workflow is written with ecologists in mind, not machine learning engineers or computer scientists. The details of Random Forest, Gradient Boosting, and Permutation Importance will be explained throughout the course of the document.
+
+Specific code examples in this document will be based on RHESSys model output from the Sagehen Creek Experimental Watershed in the Sierra Nevada, CA. The data set incorporates model parameter uncertainty and topographic variability under two separate climate warming scenarios: (1) Historic temperature levels, and (2) Two degrees Celsius warming. The dataset and associated metadata can be accessed [here](https://www.hydroshare.org/resource/2a31bd57b7e74c758b7857679ffbb4c5/). 
+
+The code below is written with Net Primary Productivity (NPP) as the response variable of interest: this means that the output of this example will offer an answer to the question: What are the most important hydroecological factors that affect NPP in an ecosystem like Sagehen Creek, _and how might that relative importance change in a warming climate?_
 
 # Setup
 
@@ -177,7 +181,10 @@ df_wy <- df_wy %>%
   select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
 ```
 
-Since this data set contains two climate scenarios, we split these up into two data frames.
+Here, we split our data into two separate data frames, one for each climate scenario. This will allow us to analyze the impact of  climate on variable importance by calculating different importance ranks for each climate scenario, and comparing how each variable gains or loses importance in a warming climate.
+
+This is an optional split: the `clim` variable could have been left as a column in the original dataframe, in which case climate scenario itself would be used as a predictor variable for NPP. For all scenario-type variables, the user can ultimately choose whether or not it is included as a predictor variable or used as the basis of separation to generate a comparison.
+
 
 ```{r split_data}
 # Create data frame with only climate scenario 0
