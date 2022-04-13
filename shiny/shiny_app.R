@@ -29,6 +29,12 @@ df_wy2 <- read.csv(here("shiny", "aggregated_datasets", "df_wy2.csv"))
 
 all_datasets <- c("df", "df_wy", "df_wy0", "df_wy2")
 
+# Get the variable importance rank datasets
+imp_wy0 <- read.csv(here("shiny", "aggregated_datasets", "imp_wy0.csv")) %>% 
+  arrange(Rank)
+imp_wy2 <- read.csv(here("shiny", "aggregated_datasets", "imp_wy2.csv")) %>% 
+  arrange(Rank)
+
 ########## User Inputs
 factor_vars <- c("stratumID", "scen", "topo")
 response_var <- df_wy$response
