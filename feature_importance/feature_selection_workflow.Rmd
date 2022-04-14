@@ -79,7 +79,7 @@ The `response_var` object is the response variable that the user wants to predic
 ```{r user_inputs}
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
 factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
-response_var <- "trans"
+response_var <- "npp"
 ```
 
 ```{r input_tests}
