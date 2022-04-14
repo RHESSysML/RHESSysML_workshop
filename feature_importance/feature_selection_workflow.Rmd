@@ -78,7 +78,7 @@ The `response_var` object is the response variable that the user wants to predic
 ```{r user_inputs}
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
 factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
-response_var <- "npp"
+response_var <- "trans"
 ```
 
 ```{r input_tests}
@@ -680,7 +680,7 @@ The results above indicate that, through 10-fold cross validation with 10% of da
 df_wy2_reduced_allpredictors <- df_wy2_reduced %>% 
   select(!response)
 
-rf_wy2_cv_fit <- rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
+rf_wy2_cv <- rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
 
 rf_wy2_cv_fit <- round(tail(rf_wy2_cv$model.varExp, 1), 2)
 
