@@ -398,7 +398,7 @@ df_wy2_reduced <- df_wy2 %>%
 
 ## Summary of Removed Variables
 
-The following steps are intended to elucidate the previous multicollinearity reduction process by creating tables and plots showing which variables were selected and removed, and why. This information can be used to determine whether the auto-generated preference order based on preliminary importance performed satisfactorily, or whether the preference order should be set manually.
+The next step is intended to elucidate the previous multicollinearity reduction process by creating tables and plots showing which variables were selected and removed, and why. This information can be used to determine whether the auto-generated preference order based on preliminary importance performed satisfactorily, or whether the preference order should be set manually.
 
 ```{r summarize_removed_vars_function, class.source='fold-hide'}
 summarize_removed_vars <- function(clim, table = FALSE) {
