@@ -200,7 +200,7 @@ df_wy2 <- df_wy %>%
 
 Now, we have two data tables representing the two climate scenarios.
 
-Along with this workflow, this repo also contains a Shiny App. The Shiny App can be used post-analysis to graph some of the relationships that are identified within this feature selection workflow. Here we'll save the newly aggregated datesets to be automatically exported into the Shiny App.
+Along with this workflow, this repo also contains a Shiny App. The Shiny App can be used post-analysis to graph some of the relationships that are identified within this feature selection workflow. Here we'll save the newly aggregated datasets to be automatically exported into the Shiny App.
 
 ```{r}
 # For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
@@ -264,7 +264,11 @@ Highly correlated predictor variables are not as much a concern in machine learn
 
 ## Method
 
-Below, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. This is implemented using the `auto_vif()` and `auto_cor()` functions from the `spatialRF` package. 
+Below, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. This is implemented using the `auto_vif()` and `auto_cor()` functions from the `spatialRF` package. Both functions allow the user to define an order of preference for the selection of variables, which will be discussed below. If no preference order is decided, the `auto_vif()` function orders the variables from minimum to maximum VIF, and the `auto_cor()` function orders variables by their column order.
+
+The `auto_vif()` function works by initially starting with the variable with highest preference. Then, it iterates through the preference order list, computing the VIF for each new variable added. If the VIF of the new variable is lower than the threshold it is kept, if not the variable is removed. This process is continued until all VIF values are below the user-input threshold.
+
+Similarly, the `auto_cor()` function works by computing a correlation matrix for all variables. Next, it computes the maximum correlation for each variable. The function then begins with the variable with lowest preference. If that variables maximum correlation coefficient is above the user-input threshold, that variable is removed. This process is continued until all correlation values are below the user-input threshold.
 
 ## Identify and Remove Correlated Variables
 
@@ -288,7 +292,7 @@ df_wy2_fpreds <- df_wy2 %>%
   colnames()
 ```
 
-The `auto_vif()` and `auto_cor()` functions allow the user to define an order of preference for the selection of variables. Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. Note that in the preliminary random forest, highly correlated variables will not produce accurate estimates of importance. However, we assume that relative importance is reasonably accurate to support the selection between highly correlated variables. The second method is used by default. 
+Below, there are two methods for setting preference order: (1) Manually creating an ordered vector of column names, or (2) Allowing a preliminary random forest method to determine preference order based on variable importance. Note that in the preliminary random forest, highly correlated variables will not produce accurate estimates of importance. However, we assume that relative importance is reasonably accurate to support the selection between highly correlated variables. The second method is used by default. 
 
 1. Run this chunk to manually create an ordered vector of column names. The vector does not need to include the names of all predictors - only those that you would like to keep in the analysis.
 
@@ -366,7 +370,7 @@ remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = p
 }
 ```
 
-Thresholds for VIF and correlation can be set using the function below, with default values of 5 and 0.75, respectively. The thresholds can be adjusted here. Increasing the thresholds will reduce the number of variables that get removed, but it will increase the likelihood that collinearity influences the results.
+Thresholds for VIF and correlation can be set below, with default values of 5 and 0.75, respectively. Increasing the thresholds will reduce the number of variables that get removed, but it will increase the likelihood that collinearity influences the results.
 
 ```{r set_thresholds}
 vif.threshold = 5
@@ -516,7 +520,7 @@ With multicollinearity reduced, the importance of predictor variables can be est
 
 ### Hyper-Parameter Tuning
 
-An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves one hyper-parameter---which is the primary hyper-parameter that requires tuning in a Random Forest.9
+An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves one hyper-parameter---which is the primary hyper-parameter that requires tuning in a Random Forest.
 
 Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
 
@@ -625,7 +629,7 @@ imp_wy2 <- varImp(rf_wy2$finalModel, scale = FALSE) %>%
   mutate(Rank = rank(-Overall))
 ```
 
-Save the above importance dataframes to be used in the shiny app.
+Save the above importance dataframes to be used in the Shiny App.
 
 ```{r}
 # This will export the importance rank datasets as csv files to be used in the shiny app. However, once again we will leave this commented out so that it doesn't export new csv files every time the workflow runs.
@@ -642,16 +646,20 @@ The following section provides visualizations and statistics to evaluate the ran
 First, simply calling the random forest shows a summary of the results, including percent variance explained.
 
 ```{r}
+rf_wy0_fit <- round(tail(rf_wy0$finalModel$rsq, 1)*100, 2)
+
 rf_wy0$finalModel
 ```
 
-The model for the base climate scenario explained 90.34% of variance in NPP.
+The model for the base climate scenario explained `r rf_wy0_fit`% of variance in NPP.
 
 ```{r}
+rf_wy2_fit <- round(tail(rf_wy2$finalModel$rsq, 1)*100, 2)
+
 rf_wy2$finalModel
 ```
 
-The model for the +2 degree Celsius climate scenario explained 88.05% of variance in NPP.
+The model for the +2 degree Celsius climate scenario explained `r rf_wy2_fit`% of variance in NPP.
 
 Next, we can implement a permutation test cross-validation for the random forest models. The statistics are based on prediction error on the withheld data.
 
@@ -659,19 +667,27 @@ Next, we can implement a permutation test cross-validation for the random forest
 df_wy0_reduced_allpredictors <- df_wy0_reduced %>% 
   select(!response)
 
-rf.crossValidation(x = rf_wy0$finalModel, xdata = df_wy0_reduced_allpredictors, p = 0.1, n = 10)
+rf_wy0_cv <- rf.crossValidation(x = rf_wy0$finalModel, xdata = df_wy0_reduced_allpredictors, p = 0.1, n = 10)
+
+rf_wy0_cv_fit <- round(tail(rf_wy0_cv$model.varExp, 1), 2)
+
+rf_wy0_cv
 ```
 
-The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains 89.68% of the variance in NPP. This result is 0.66% lower than our original fit % explained.
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains `r rf_wy0_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
 
 ```{r}
 df_wy2_reduced_allpredictors <- df_wy2_reduced %>% 
   select(!response)
 
-rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
+rf_wy2_cv_fit <- rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
+
+rf_wy2_cv_fit <- round(tail(rf_wy2_cv$model.varExp, 1), 2)
+
+rf_wy2_cv
 ```
 
-The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains 86.99% of the variance in NPP. This result is 1.06% lower than our original fit % explained.
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains `r rf_wy2_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
 
 # Visualize Results
 
