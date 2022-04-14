@@ -707,7 +707,7 @@ df_imp_table(imp_wy0, imp_wy2)
 
 We see that precipitation and rz_storage are the first and second most important predictors of NPP for both climate scenarios. The highest difference is evaporation - which is third most important for the base climate scenario and sixth for the +2 degree Celsius warming scenario. This indicates that the relationship between NPP and evaporation has changed given warming, which could be investigated further. This process can be repeated for all other observations found in the table.
 
-This same information can be plotted below. The variable importance plots also reveal relative magnitude of importance between variables. Note that this is somewhat of an artifact of the mechanics of a random forests model and not necessarily reflective of the actual relative importance of these variables in the natural world.
+This same information is plotted below. The variable importance plots also reveal relative magnitude of importance between variables. 
 
 ```{r plot_imp}
 plot_imp <- function(varimp_df) {
@@ -717,7 +717,7 @@ plot_imp <- function(varimp_df) {
     theme_light() +
     theme(legend.position = "none",
           axis.text.x = element_blank()) +
-    labs(title = paste0("Variable Importance for \n", df_name),
+    labs(title = paste0("Variable Importance for \n climate scenario ", str_sub(df_name, -length(df_name))),
          x = "Importance",
          y = "Variable")
 }
@@ -737,9 +737,8 @@ ggsave(importance_plots, filename = "importance_plots.png", path = here("shiny",
 
 ## Previewing relationships between important predictors and NPP
 
-The variable importance values derived from our random forest model allow us to investigate intriguing relationships between variables that have been identified as having greater importance.
+The variable importance values derived from our Random Forest model allow us to investigate interesting relationships and interactions between the response term and important predictors. Below, we investigate how NPP's relationship with the most important predictor is impacted by changes in other predictors in the model.
 
-Here, we investigate the relationships of some of the most important identified variables with NPP as well as their interactions.
 
 ```{r}
 get_important_predictors <- function(df_imp, rank) {
@@ -843,7 +842,7 @@ The capstone team chose to use permutation importance above as our main represen
 The plot below presents the top 10 variables using % mean decrease in accuracy (%IncMSE) and mean decrease in node impurity (IncNodePurity). %IncMSE is computed from permuting the out-of-bag data, while IncNodePurity is the mean total decrease in node impurities from splitting on the given variable, as measured by the residual sum of squares.
 
 ```{r}
-varImpPlot(rf_wy0$finalModel, n.var = 10)
+varImpPlot(rf_wy0$finalModel, n.var = 10, main = "Comparing variable importance measures for climate scenario 0")
 ```
 
 The plot below visualizes the distribution of minimum depth from the random forest model. Low values, such as for precipitation below, indicate that many observations are divided into groups based on that variable.
@@ -865,7 +864,7 @@ explain0 <- explain(object = rf_wy0$finalModel,
 autoplot(explain0, type = "contribution", feature = "response")
 ```
 
-Lastly, while permutation importance is an appropriate measurement for this use case and many models beyond just random forest, this approach has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditional* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. Previously, this bias was addressed by removing highly correlated variables from the data sets.
+Lastly, while permutation importance is an appropriate measurement for this use case and many models beyond just random forest, this approach has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditionally* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. Previously, this bias was addressed by removing highly correlated variables from the datasets.
 
 ```{r permimp, warning = FALSE}
 # imp_wy0 <- permimp(rf_wy0$finalModel, do_check = FALSE, progressBar = FALSE)
