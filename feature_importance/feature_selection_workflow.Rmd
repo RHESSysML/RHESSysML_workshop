@@ -516,13 +516,13 @@ plot_removed_vif(clim = 2)
 
 # Feature Importance
 
-With multicollinearity reduced, the importance of predictor variables can be estimated using Random Forest and partial permutation importance. **MOVE THIS UP>>In this framework, we use the Random Forest because this method has been proven to be able to make predictions and assess feature importance with a high degree of accuracy in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques.**
+With multicollinearity reduced, the importance of predictor variables can be estimated using Random Forest and partial permutation importance. In this framework, we use Random Forest because it has been shown to be an effective tool in assessing feature importance in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques. 
 
 ### Hyper-Parameter Tuning
 
-An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves one hyper-parameter---which is the primary hyper-parameter that requires tuning in a Random Forest.
+An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves `mtry`---the primary parameter that requires adjustment in a Random Forest.
 
-Below, we tune the `mtry` parameter, which determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
+The `mtry` parameter determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
 
 The function below creates a vector of accuracy results of random forests using different values for `mtry`.
 
