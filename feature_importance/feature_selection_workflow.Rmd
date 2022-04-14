@@ -305,7 +305,7 @@ Below, there are two methods for setting preference order: (1) Manually creating
 
 2. Run this chunk to allow preliminary random forest to automatically determine preference order.
 
-```{r auto_preference_order}
+```{r auto_preference_order, warning=FALSE}
 # First climate scenario
 
 # Find preliminary importance using random forest
