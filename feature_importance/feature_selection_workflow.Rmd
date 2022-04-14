@@ -21,7 +21,7 @@ The code below is written with Net Primary Productivity (NPP) as the response va
 
 # Setup
 
-```{r setup, include = TRUE}
+```{r setup, include = TRUE, warning=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 options(scipen = 999)
