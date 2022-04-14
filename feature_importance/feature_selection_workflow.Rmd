@@ -6,6 +6,7 @@ output:
   rmarkdown::html_document:
     toc: true
     toc_float: true
+    code_folding: show
     theme: cerulean
 ---
 
@@ -393,9 +394,9 @@ df_wy2_reduced <- df_wy2 %>%
 
 ## Summary of Removed Variables
 
-The following tables and plots are intended to elucidate the multicollinearity reduction process by showing which variables were removed and why.
+The following steps are intended to elucidate the previous multicollinearity reduction process by creating tables and plots showing which variables were selected and removed, and why. This information can be used to determine whether the auto-generated preference order based on preliminary importance performed satisfactorily, or whether the preference order should be set manually.
 
-```{r summarize_removed_vars_function}
+```{r summarize_removed_vars_function, class.source='fold-hide'}
 summarize_removed_vars <- function(clim, table = FALSE) {
   
   select_variables <- get(paste0("wy", clim, "_select_variables"))
@@ -435,7 +436,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
 }
 ```
 
-```{r summarize_cor_function}
+```{r summarize_cor_function, class.source='fold-hide'}
 summarize_cor <- function(clim, selected_removed) {
   
   num_preds.df <-  get(paste0("df_wy", clim, "_num_preds"))
@@ -472,7 +473,7 @@ summarize_cor <- function(clim, selected_removed) {
 }
 ```
 
-```{r plot_removed_imp_function}
+```{r plot_removed_imp_function, class.source='fold-hide'}
 plot_removed_imp <- function(clim) {
   
   removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
@@ -484,7 +485,7 @@ plot_removed_imp <- function(clim) {
 }
 ```
 
-```{r plot_removed_vif_function}
+```{r plot_removed_vif_function, class.source='fold-hide'}
 plot_removed_vif <- function(clim) {
   
   removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
@@ -496,12 +497,18 @@ plot_removed_vif <- function(clim) {
 }
 ```
 
+The following functions output two tables and two plots of all variables indicating selection status and the criteria by which those selections were made. The first table shows preliminary importance and VIF, and the second shows correlation between each variable combination. Preliminary importance and VIF are also plotted visually in the two bar charts. 
+
+Climate scenario 0:
+
 ```{r summarize_removed_vars_clim0}
 summarize_removed_vars(clim = 0, table = TRUE)
 summarize_cor(clim = 0, selected_removed = "removed")
 plot_removed_imp(clim = 0)
 plot_removed_vif(clim = 0)
 ```
+
+Climate scenario 2:
 
 ```{r summarize_removed_vars_clim2}
 summarize_removed_vars(clim = 2, table = TRUE)
