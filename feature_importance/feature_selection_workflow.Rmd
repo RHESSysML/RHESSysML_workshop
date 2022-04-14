@@ -603,15 +603,17 @@ rf_wy2 <- train(x = df_wy2_reduced %>% select(!response),
                 trControl = trainControl(method = "none", seed = 4326)) # to use 10-fold cross validation, method = "cv", number = 10
 ```
 
-Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). These, as well as other variable importance measurements, are further explained at the end of this document.
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Despite some of their shortcomings, these importance measures can provide insights are further explored at the end of this document.
 
-To measure variable importance, we instead use permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps...
+As the primary measure of importance we instead use partial permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps...
 
-1. For each tree, record the prediction accuracy (mean squared error) on the out-of-bag data.
+1. Assess prediction accuracy (mean squared error) of the model on the out-of-bag data.
 
-2. Repeat after permuting each predictor variable.
+2. Permute the values of a given variable.
 
-3. Calculate the difference between the two accuracy measurements and average over all trees, normalizing by standard error.
+3. Feed the dataset with the permuted values into the Random Forest and reassess model accuracy.
+
+4. Importance of the permuted variable is deemed to be the mean loss in accuracy when its values were permuted.
 
 ```{r variable_importance}
 imp_wy0 <- varImp(rf_wy0$finalModel, scale = FALSE) %>% 
