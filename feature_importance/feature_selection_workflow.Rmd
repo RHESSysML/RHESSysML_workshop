@@ -483,7 +483,8 @@ plot_removed_imp <- function(clim) {
   
   removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
                              aes(x = importance, y = reorder(variable, importance), fill = selected)) +
-    geom_col() + labs(x = "Preliminary Importance", y = "Variable")
+    geom_col() + labs(x = "Preliminary Importance", y = "Variable") +
+    theme_light()
   
   return(removed_imp_plot)
   
@@ -495,7 +496,8 @@ plot_removed_vif <- function(clim) {
   
   removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
                               aes(x = vif, y = reorder(variable, vif), fill = selected)) + 
-    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable")
+    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable") +
+    theme_light()
   
   return(removed_vif_plot)
   
@@ -865,8 +867,8 @@ Variable interactions can be investigated in many ways. The bivariate partial de
 ```{r}
 bivariate.partialDependence(x = rf_wy0$finalModel,
                             pred.data = df_wy0_reduced_allpredictors,
-                            v1 = "lai",
-                            v2 = "precip",
+                            v1 = pred1_clim0,
+                            v2 = pred2_clim0,
                             grid.size = 15,
                             col.ramp = c("orange", "green"),
                             ncols = 20)
@@ -877,8 +879,8 @@ Running this plot for both data sets can demonstrate how variable interactions s
 ```{r}
 bivariate.partialDependence(x = rf_wy2$finalModel,
                             pred.data = df_wy2_reduced[-1],
-                            v1 = "lai",
-                            v2 = "precip",
+                            v1 = pred1_clim2,
+                            v2 = pred2_clim2,
                             grid.size = 15,
                             col.ramp = c("orange", "green"),
                             ncols = 20)
