@@ -426,7 +426,8 @@ summarize_removed_vars <- function(clim, table = FALSE) {
   
   # joining dfs to create summary table of removed and selected variables
   removed_summary <- removed_importance %>% 
-    left_join(removed_vif, by = "variable") 
+    left_join(removed_vif, by = "variable") %>% 
+    filter(!(variable %in% factor_vars))
   
   if (table == TRUE) {
     
