@@ -154,12 +154,12 @@ Next, for our example, there were some changes that needed to be made that may o
 
 ```{r prepare_data}
 # Change aspect and slope from radians to degrees
-df_wy <- df %>% 
+df <- df %>% 
   mutate(aspect = aspect*(180/pi),
          slope = slope*(180/pi))
 
 # Group by chosen columns
-df_wy <- df_wy %>%   
+df_wy <- df %>%   
   group_by(across(all_of(group_cols)))
 
 # Aggregate average temperatures using the aggregate_temp() function defined above.
