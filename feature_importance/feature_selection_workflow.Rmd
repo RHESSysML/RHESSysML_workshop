@@ -154,12 +154,12 @@ Next, for our example, there were some changes that needed to be made that may o
 
 ```{r prepare_data}
 # Change aspect and slope from radians to degrees
-df_wy <- df %>% 
+df <- df %>% 
   mutate(aspect = aspect*(180/pi),
          slope = slope*(180/pi))
 
 # Group by chosen columns
-df_wy <- df_wy %>%   
+df_wy <- df %>%   
   group_by(across(all_of(group_cols)))
 
 # Aggregate average temperatures using the aggregate_temp() function defined above.
@@ -237,7 +237,7 @@ summarize_data(df_wy0)
 summarize_data(df_wy2)
 ```
 
-We can also look at the key study area characteristics. In this study, there are six study areas where RHESSys was run.
+We can also look at the key study area characteristics. In this Sagehen Creek study area, there are six landscape positions where RHESSys was run.
 
 ```{r describe_strata}
 strata <- df_wy %>%
@@ -256,7 +256,7 @@ strata <- df_wy %>%
          "Slope (degrees)" = slope)
 
 DT::datatable(strata,
-              caption = "Summary of 6 Study Areas in Sagehen Creek")
+              caption = "Summary of 6 landscape positions in the Sagehen Creek study area")
 ```
 
 # Remove Multicollinearity
@@ -407,7 +407,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
   imp <- get(paste0("imp", clim))
   df <- get(paste0("df_wy", clim))
   all_preds.df <- df %>% 
-    select(!response & where(is.numeric))
+    select(!response)
   
   
   removed_importance <- imp$finalModel["importance"] %>% 
@@ -426,7 +426,8 @@ summarize_removed_vars <- function(clim, table = FALSE) {
   
   # joining dfs to create summary table of removed and selected variables
   removed_summary <- removed_importance %>% 
-    left_join(removed_vif, by = "variable")
+    left_join(removed_vif, by = "variable") %>% 
+    filter(!(variable %in% factor_vars))
   
   if (table == TRUE) {
     
@@ -447,7 +448,6 @@ summarize_cor <- function(clim, selected_removed) {
   cor_matrix <- cor(num_preds.df)
   select_variables <- get(paste0("wy", clim, "_select_variables"))
 
-  
   cor.df <- reshape2::melt(cor_matrix)
   cor.df <- cor.df %>% 
     filter(Var1 != Var2)
@@ -470,6 +470,7 @@ summarize_cor <- function(clim, selected_removed) {
   cor.df <- cor.df[order(cor.df$Var1), ]
   
   cor.table <- cor.df %>%
+    mutate_if(is.numeric, round, 4) %>% 
     datatable(options = list())
   
   return(cor.table)
@@ -482,7 +483,8 @@ plot_removed_imp <- function(clim) {
   
   removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
                              aes(x = importance, y = reorder(variable, importance), fill = selected)) +
-    geom_col() + labs(x = "Preliminary Importance", y = "Variable")
+    geom_col() + labs(x = "Preliminary Importance", y = "Variable") +
+    theme_light()
   
   return(removed_imp_plot)
   
@@ -494,7 +496,8 @@ plot_removed_vif <- function(clim) {
   
   removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
                               aes(x = vif, y = reorder(variable, vif), fill = selected)) + 
-    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable")
+    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable") +
+    theme_light()
   
   return(removed_vif_plot)
   
@@ -507,7 +510,7 @@ The following functions output two tables and two plots of all variables indicat
 
 #### VIF Summary Table
 
-```{r vif_summary_table_0}
+```{r vif_summary_table_0, warning=FALSE}
 summarize_removed_vars(clim = 0, table = TRUE)
 ```
 
@@ -519,13 +522,13 @@ summarize_cor(clim = 0, selected_removed = "removed")
 
 #### Importance Summary Plot
 
-```{r imp_summary_plot_0}
+```{r imp_summary_plot_0, warning=FALSE}
 plot_removed_imp(clim = 0)
 ```
 
 #### VIF Summary Plot
 
-```{r vif_summary_plot_0}
+```{r vif_summary_plot_0, warning=FALSE}
 plot_removed_vif(clim = 0)
 ```
 
@@ -534,7 +537,7 @@ plot_removed_vif(clim = 0)
 
 #### VIF Summary Table
 
-```{r vif_summary_table_2}
+```{r vif_summary_table_2, warning=FALSE}
 summarize_removed_vars(clim = 2, table = TRUE)
 ```
 
@@ -546,13 +549,13 @@ summarize_cor(clim = 2, selected_removed = "removed")
 
 #### Importance Summary Plot
 
-```{r imp_summary_plot_2}
+```{r imp_summary_plot_2, warning=FALSE}
 plot_removed_imp(clim = 2)
 ```
 
 #### VIF Summary Plot
 
-```{r vif_summary_plot_2}
+```{r vif_summary_plot_2, warning=FALSE}
 plot_removed_vif(clim = 2)
 ```
 
@@ -864,8 +867,8 @@ Variable interactions can be investigated in many ways. The bivariate partial de
 ```{r}
 bivariate.partialDependence(x = rf_wy0$finalModel,
                             pred.data = df_wy0_reduced_allpredictors,
-                            v1 = "lai",
-                            v2 = "precip",
+                            v1 = pred1_clim0,
+                            v2 = pred2_clim0,
                             grid.size = 15,
                             col.ramp = c("orange", "green"),
                             ncols = 20)
@@ -876,8 +879,8 @@ Running this plot for both data sets can demonstrate how variable interactions s
 ```{r}
 bivariate.partialDependence(x = rf_wy2$finalModel,
                             pred.data = df_wy2_reduced[-1],
-                            v1 = "lai",
-                            v2 = "precip",
+                            v1 = pred1_clim2,
+                            v2 = pred2_clim2,
                             grid.size = 15,
                             col.ramp = c("orange", "green"),
                             ncols = 20)
