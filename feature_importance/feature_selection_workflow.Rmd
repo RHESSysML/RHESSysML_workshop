@@ -508,7 +508,7 @@ The following functions output two tables and two plots of all variables indicat
 
 #### VIF Summary Table
 
-```{r vif_summary_table_0}
+```{r vif_summary_table_0, warning=FALSE}
 summarize_removed_vars(clim = 0, table = TRUE)
 ```
 
@@ -520,13 +520,13 @@ summarize_cor(clim = 0, selected_removed = "removed")
 
 #### Importance Summary Plot
 
-```{r imp_summary_plot_0}
+```{r imp_summary_plot_0, warning=FALSE}
 plot_removed_imp(clim = 0)
 ```
 
 #### VIF Summary Plot
 
-```{r vif_summary_plot_0}
+```{r vif_summary_plot_0, warning=FALSE}
 plot_removed_vif(clim = 0)
 ```
 
@@ -535,7 +535,7 @@ plot_removed_vif(clim = 0)
 
 #### VIF Summary Table
 
-```{r vif_summary_table_2}
+```{r vif_summary_table_2, warning=FALSE}
 summarize_removed_vars(clim = 2, table = TRUE)
 ```
 
@@ -547,13 +547,13 @@ summarize_cor(clim = 2, selected_removed = "removed")
 
 #### Importance Summary Plot
 
-```{r imp_summary_plot_2}
+```{r imp_summary_plot_2, warning=FALSE}
 plot_removed_imp(clim = 2)
 ```
 
 #### VIF Summary Plot
 
-```{r vif_summary_plot_2}
+```{r vif_summary_plot_2, warning=FALSE}
 plot_removed_vif(clim = 2)
 ```
 
