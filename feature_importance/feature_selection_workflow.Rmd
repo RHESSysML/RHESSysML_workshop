@@ -237,7 +237,7 @@ summarize_data(df_wy0)
 summarize_data(df_wy2)
 ```
 
-We can also look at the key study area characteristics. In this study, there are six study areas where RHESSys was run.
+We can also look at the key study area characteristics. In this study, there are six landscape positions where RHESSys was run.
 
 ```{r describe_strata}
 strata <- df_wy %>%
@@ -256,7 +256,7 @@ strata <- df_wy %>%
          "Slope (degrees)" = slope)
 
 DT::datatable(strata,
-              caption = "Summary of 6 Study Areas in Sagehen Creek")
+              caption = "Summary of 6 landscape positions in the Sagehen Creek study area")
 ```
 
 # Remove Multicollinearity
