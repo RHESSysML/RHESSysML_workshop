@@ -407,7 +407,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
   imp <- get(paste0("imp", clim))
   df <- get(paste0("df_wy", clim))
   all_preds.df <- df %>% 
-    select(!response & where(is.numeric))
+    select(!response)
   
   
   removed_importance <- imp$finalModel["importance"] %>% 
@@ -426,7 +426,7 @@ summarize_removed_vars <- function(clim, table = FALSE) {
   
   # joining dfs to create summary table of removed and selected variables
   removed_summary <- removed_importance %>% 
-    left_join(removed_vif, by = "variable")
+    left_join(removed_vif, by = "variable") 
   
   if (table == TRUE) {
     
@@ -447,7 +447,6 @@ summarize_cor <- function(clim, selected_removed) {
   cor_matrix <- cor(num_preds.df)
   select_variables <- get(paste0("wy", clim, "_select_variables"))
 
-  
   cor.df <- reshape2::melt(cor_matrix)
   cor.df <- cor.df %>% 
     filter(Var1 != Var2)
@@ -470,6 +469,7 @@ summarize_cor <- function(clim, selected_removed) {
   cor.df <- cor.df[order(cor.df$Var1), ]
   
   cor.table <- cor.df %>%
+    mutate_if(is.numeric, round, 4) %>% 
     datatable(options = list())
   
   return(cor.table)
