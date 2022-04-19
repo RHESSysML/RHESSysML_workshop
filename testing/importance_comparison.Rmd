@@ -9,7 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-**You have to run the main workflow Rmd first to run this**
+## Loading random forests
+
+```{r}
+load(here("testing", "saved_output", "rf_wy0.RData"))
+load(here("testing", "saved_output", "rf_wy2.RData"))
+```
 
 ## Clim0
 
