@@ -36,47 +36,7 @@ options(scipen = 5)
 ## Load Data
 
 ```{r load_data, message=FALSE}
-df <- read_csv(here("data", "sageres.csv")) 
-```
-
-The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable.
-
-```{r user_inputs}
-## USER INPUTS
-group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
-factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
-response_var <- "npp"
-```
-
-```{r prepare_data}
-## Convert categorical variables to factors
-df[,factor_vars] <- lapply(df[,factor_vars], factor)
-
-df_wy <- df %>% 
-  ## Change aspect and splope from radians to degrees
-  mutate(aspect=aspect*(180/pi),
-         slope=slope*(180/pi)) %>% 
-  group_by(across(all_of(group_cols))) %>% 
-  mutate(jun_tavg = mean(tavg[month == 6]),
-         jul_tavg = mean(tavg[month == 7]),
-         aug_tavg = mean(tavg[month == 8]),
-         sep_tavg = mean(tavg[month == 9]),
-         oct_tavg = mean(tavg[month == 10]),
-         nov_tavg = mean(tavg[month == 11]),
-         dec_tavg = mean(tavg[month == 12]),
-         jan_tavg = mean(tavg[month == 1]),
-         feb_tavg = mean(tavg[month == 2]),
-         mar_tavg = mean(tavg[month == 3]),
-         apr_tavg = mean(tavg[month == 4]),
-         may_tavg = mean(tavg[month == 5]),) %>% 
-  mutate(peak_swe=max(swe)) %>%
-  mutate(swe_precip_ratio=peak_swe/sum(precip)) %>% 
-  summarise_if(is.numeric, mean) %>% 
-  ungroup() %>% 
-  ## Reorder response variables first
-  select(!!response_var, everything()) %>% 
-  ## Remove unwanted variables (manually?)
-  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy))
+df_wy <- read_csv(here("shiny", "aggregated_datasets", "df_wy.csv")) 
 
 ## Create data frame with only climate scenario 0
 df_wy0 <- df_wy %>% 
@@ -199,32 +159,52 @@ xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
 # Caret Package
 
 ```{r Cross-validation, message=FALSE, warning=FALSE}
+# setup for prediction
+y = df_wy$response
+x = df_wy[-1]
+
 # some shenanigans to get the seed into the right shape to work with 10-fold cross-validation
-s = 4326
-seed = list()
+# s = 4326
+# seed = list()
+# for (i in 1:10) {
+#   seed[[i]] <- rep(s, 36)
+# }
+# seed[[11]] = 4326
 
-for (i in 1:10) {
-  seed[[i]] <- rep(s, 36)
-}
+fitControl <- caret::trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final',
+  verboseIter = TRUE,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
 
-seed[[11]] = 4326
+xgbGrid <- expand.grid(
+  nrounds = seq(from = 400, to = 600, 30),
+  eta = c(0.01),
+  max_depth = c(2:4),
+  gamma = 0,
+  colsample_bytree = c(0.8),
+  min_child_weight = c(1, 5),
+  subsample = c(1.0)
+)
 
-# Using the caret package to do 10-fold cross-validation
-train_control = caret::trainControl(method = "cv",
-                                    number = 10,
-                                    seed = s,
-                                    allowParallel = FALSE)
+gb_mod_caret = train(x = x,
+                     y = y,
+                     method = "xgbTree",
+                     trControl = fitControl,
+                     tuneGrid = xgbGrid,
+                     verbose = FALSE)
 
-gb_model0_caret = train(npp~.,
-                        data = df_wy0,
-                        method = "xgbTree",
-                        trControl = train_control,
-                        verbosity = 0)
-gb_model2_caret = train(npp~.,
-                        data = df_wy2,
-                        method = "xgbTree",
-                        trControl = train_control,
-                        verbosity = 0)
+# gb_model0_caret = train(response~.,
+#                         data = df_wy0,
+#                         method = "xgbTree",
+#                         trControl = train_control)
+# gb_model2_caret = train(response~.,
+#                         data = df_wy2,
+#                         method = "xgbTree",
+#                         trControl = train_control)
 ```
 
 ```{r}
