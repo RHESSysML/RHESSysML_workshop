@@ -16,39 +16,112 @@ This R markdown file holds all of the metadata for RHESSys output data. If your 
 ```{r}
 # This creates the initial metadata dataframe.
 metadata <- data.frame(
-  stringsAsFactors = FALSE,
-          variable = c("npp","wy","stratumID",
-                       "clim","scen","topo","lai","height","plantc","cpool",
-                       "swe","precip","trans","evap","sat_deficit",
-                       "rz_storage","tmax","tmin","aspect","slope","elev",
-                       "winter_tavg","spring_tavg","summer_tavg","fall_tavg",
-                       "peak_swe","swe_precip_ratio"),
+          stringsAsFactors = FALSE,
+          variable = c("npp",
+                       "wy",
+                       "stratumID",
+                       "clim",
+                       "scen",
+                       "topo",
+                       "lai",
+                       "height",
+                       "plantc",
+                       "cpool",
+                       "swe",
+                       "precip",
+                       "trans",
+                       "evap",
+                       "sat_deficit",
+                       "rz_storage",
+                       "tmax",
+                       "tmin",
+                       "aspect",
+                       "slope",
+                       "elev",
+                       "winter_tavg",
+                       "spring_tavg",
+                       "summer_tavg",
+                       "fall_tavg",
+                       "peak_swe",
+                       "swe_precip_ratio"),
+          
          full_name = c("Net Primary Productivity",
-                       "Water Year","Stratum Identification Number",
-                       "Climte Scenario","Uncertainty Scenario","Topography Type",
-                       "Leaf Area Index","Tree Height","Total Plant Carbon",
-                       "Non-Structural Carbohydrate Pool","Snow Water Equivalent",
-                       "Precipitation","Transpiration","Evaporation",
-                       "Soil Moisture Saturation Deficit","Root-Zone Soil Moisture Storage",
-                       "Maximum Daily Tempurature","Minimum Daily Tempurature",
-                       "Aspect","Slope","Elevation",
-                       "Average Winter Tempurature","Average Spring Tempurature",
-                       "Average Summer Tempurature","Average Fall Tempurature",
+                       "Water Year",
+                       "Stratum Identification Number",
+                       "Climte Scenario",
+                       "Uncertainty Scenario",
+                       "Topography Type",
+                       "Leaf Area Index",
+                       "Tree Height",
+                       "Total Plant Carbon",
+                       "Non-Structural Carbohydrate Pool",
+                       "Snow Water Equivalent",
+                       "Precipitation",
+                       "Transpiration",
+                       "Evaporation",
+                       "Soil Moisture Saturation Deficit",
+                       "Root-Zone Soil Moisture Storage",
+                       "Maximum Daily Tempurature",
+                       "Minimum Daily Tempurature",
+                       "Aspect",
+                       "Slope",
+                       "Elevation",
+                       "Average Winter Tempurature",
+                       "Average Spring Tempurature",
+                       "Average Summer Tempurature",
+                       "Average Fall Tempurature",
                        "Peak Snow Water Equivalent",
                        "Snow Water Equivalent and Precipitation Ratio"),
-       description = c("Net Primary Productivity (kg C / m^2)","Water Year - October 1st to September 30th",
+         
+         units = c("(kg C / m^2)",
+                   "",
+                   "",
+                   "",
+                   "",
+                   "",
+                   "",
+                   "(m)",
+                   "(kg C / m^2)",
+                   "(kg C / m^2)",
+                   "(m)",
+                   "(m)",
+                   "(m / day)",
+                   "(m / day)",
+                   "(m)",
+                   "(m)",
+                   "(deg C)",
+                   "(deg C)",
+                   "(deg CCW from East)",
+                   "(deg)",
+                   "(m above sea level)",
+                   "(deg C)",
+                   "(deg C)",
+                   "(deg C)",
+                   "(deg C)",
+                   "(m)",
+                   ""),
+         
+         description = c("Net Primary Productivity (kg C / m^2)",
+                       "Water Year - October 1st to September 30th",
                        "The strata identification number for each stratum within the watershed",
                        "Climate Change Variable - \"0\" indicates baseline climate, \"2\" indicates +2 deg C of climate warming",
                        "Scenario - 1-10 indicates parameter uncertainty (6-10 refer to same parameter sets as 1-5, only difference is climate)",
                        "Topographic Position - \"R\" (Riparian), \"U\" (Upslope), or \"M\" (Mid-slope)",
-                       "Leaf Area Index (-)","Tree Height (m)",
-                       "Total Plant Carbon (kg C / m^2)","Non-Structural Carbohydate Pool (kg C / m^2)",
-                       "Snow Water Equivalent (m)","Precipitation (m)",
-                       "Transpiration (m/day)","Evaporation (m/day)",
-                       "Soil Moisture Saturation Deficit (m)","Root-Zone Soil Moisture Storage (m)",
+                       "Leaf Area Index (-)",
+                       "Tree Height (m)",
+                       "Total Plant Carbon (kg C / m^2)",
+                       "Non-Structural Carbohydate Pool (kg C / m^2)",
+                       "Snow Water Equivalent (m)",
+                       "Precipitation (m)",
+                       "Transpiration (m/day)",
+                       "Evaporation (m/day)",
+                       "Soil Moisture Saturation Deficit (m)",
+                       "Root-Zone Soil Moisture Storage (m)",
                        "Maximum Daily Temperature (deg C)",
-                       "Minimum Daily Temperature (deg C)","Aspect (degrees CCW from east)",
-                       "Slope (degrees)","Elevation (m.a.s.l.)",
+                       "Minimum Daily Temperature (deg C)",
+                       "Aspect (degrees CCW from east)",
+                       "Slope (degrees)",
+                       "Elevation (m.a.s.l.)",
                        "Average temperature for the winter, which are months 12, 1, 2 and 3 by default.",
                        "Average temperature for the spring, which are months 4 and 5 by default.",
                        "Average temperature for the summer, which are months 6, 7, 8 and 9 by default.",
@@ -61,7 +134,7 @@ metadata <- data.frame(
 These functions allow you to add or remove variables from the metadata data frame.
 
 ```{r}
-add_variable <- function(variable, full_name, description) {
+add_variable <- function(variable, full_name, units = "", description) {
   metadata <- add_row(metadata, variable = variable, full_name = full_name, description = description)
   return(metadata)
 }
@@ -76,7 +149,7 @@ Here are some examples of how to use the above functions.
 
 ```{r}
 # Add a row to the metadata. Provide the variable, its full name, and its description in quotes.
-metadata <- add_variable("test_var", "test_name", "test_desc")
+metadata <- add_variable("test_var", "test_name", units ="test_unit", "test_desc")
 
 # Remove a row from the metadata. Provide the variable as it appears in
 metadata <- remove_variable("test_name")
@@ -91,7 +164,7 @@ metadata <- arrange(metadata, variable)
 Save the metadata dataframe as a csv file to be used in the shiny app.
 
 ```{r}
-write.csv(metadata, file = here("aggregated_datasets", "metadata.csv"))
+write.csv(metadata, file = here("shiny", "aggregated_datasets", "metadata.csv"))
 ```
 
 
