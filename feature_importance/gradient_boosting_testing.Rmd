@@ -29,7 +29,6 @@ library(caTools)
 library(DiagrammeR)
 
 options(scipen = 5)
-set.seed(101)
 ```
 
 # Data Preparation
@@ -211,11 +210,47 @@ for (i in 1:10) {
 seed[[11]] = 4326
 
 # Using the caret package to do 10-fold cross-validation
-train_control = caret::trainControl(method = "cv", number = 10, seed = seed)
+train_control = caret::trainControl(method = "cv",
+                                    number = 10,
+                                    seed = s,
+                                    allowParallel = FALSE)
 
-gb_model0_caret = train(npp~., data = df_wy0, method = "xgbTree", trControl = train_control)
-gb_model2_caret = train(npp~., data = df_wy2, method = "xgbTree", trControl = train_control)
+gb_model0_caret = train(npp~.,
+                        data = df_wy0,
+                        method = "xgbTree",
+                        trControl = train_control,
+                        verbosity = 0)
+gb_model2_caret = train(npp~.,
+                        data = df_wy2,
+                        method = "xgbTree",
+                        trControl = train_control,
+                        verbosity = 0)
 ```
+
+```{r}
+# different boosting package
+
+set.seed(4326)
+s = 4326
+
+# Using the caret package to do 10-fold cross-validation
+train_control = caret::trainControl(method = "cv",
+                                    number = 10,
+                                    #seed = s,
+                                    allowParallel = FALSE)
+
+gb_model0_caret = train(npp~.,
+                        data = df_wy0,
+                        method = "bstTree",
+                        trControl = train_control,
+                        verbosity = 0)
+gb_model2_caret = train(npp~.,
+                        data = df_wy2,
+                        method = "bstTree",
+                        trControl = train_control,
+                        verbosity = 0)
+```
+
 
 We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
 
