@@ -10,6 +10,9 @@ library(kableExtra)
 library(shinythemes)
 library(lubridate)
 library(DT)
+library(plotly)
+library(shinycssloaders)
+#library(shinydashboard)
 
 #options(scipen=999)
 
@@ -130,6 +133,13 @@ ui <- fluidPage(
   theme = shinytheme("superhero"),
   
   tags$h1("RHESSys Output Exploration"),
+    
+  tags$head(tags$style("
+                       label {
+                             color:#FFFFFF;
+                       }
+                       
+                       ")),
   
   navbarPage("Explore your dataset!",
              tabPanel("Welcome!",
@@ -156,12 +166,14 @@ ui <- fluidPage(
                                    topo_sel,
                                    clim_sel,
                                    wy_sel,
-                                   "Varibles to Explore:",
+                                   "Variables to Explore:",
                                    independent_variable,
                                    facet_variable,
                                    quantile_slider),
-                      mainPanel("Visual Graph of your variable relationships:",
-                                plotOutput(outputId = "variable_plot", height = 700)))
+                      #tabBox(
+                        mainPanel("Visual Graph of your variable relationships:",
+                                  plotlyOutput(outputId = "variable_plot") %>% withSpinner(type = 6), align = "center"))  
+                      #)
   )
 )
 
@@ -188,15 +200,44 @@ server <- function(input, output) {
              wy %in% input$wy_sel[1]:input$wy_sel[2])
   })
   
-  output$variable_plot <- renderPlot({
-    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = response)) +
-      geom_point(aes(color = clim)) +
-      geom_smooth(se = FALSE, method = lm, color = "#B251F1") +
-      scale_color_manual(values = c("0" = "#FEA346", 
-                                    "2" = "#4BA4A4")) +
-      labs(color = "Climate Scenario") +
-      facet_wrap(~ quantile) +
-      theme(text = element_text(size = 17))
+  # output$variable_plot <- renderPlot({
+  #   
+  #   ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = response)) +
+  #     geom_point(aes(color = clim)) +
+  #     geom_smooth(se = FALSE, method = lm, color = "#B251F1") +
+  #     scale_color_manual(values = c("0" = "#FEA346", 
+  #                                   "2" = "#4BA4A4")) +
+  #     labs(color = "Climate Scenario") +
+  #     facet_wrap(~ quantile) + 
+  #     theme_light() +
+  #     theme(text = element_text(size = 17))
+  #   
+  # })
+  
+  output$variable_plot <- renderPlotly({
+    
+    # fit <- df_wy_reactive() %>% 
+    #   group_by(quantile) %>% 
+    #   lm(response ~ get(input$independent_variable), .) %>% 
+    #   fitted.values()
+    
+    num_quantiles <- df_wy_reactive() %>% summarize(n_distinct(quantile)) %>% pull()
+    
+    df_wy_reactive() %>% 
+      group_by(quantile) %>% 
+      group_map(~ plot_ly(., x = ~get(input$independent_variable), y = ~response, 
+                          color = ~clim, mode = "markers", type = "scatter",
+                          colors = c("#FEA346", "#4BA4A4"))) %>% 
+                  # add_trace(x = ~get(input$independent_variable),
+                  #           y = fit,
+                  #           mode = "lines")) %>% 
+      subplot(nrows = (((num_quantiles-1)%/%3)+1), 
+              shareX = TRUE, shareY = TRUE, which_layout = 1) %>% 
+      layout(xaxis = list(title = paste0(input$independent_variable)),
+             legend = list(title = list("<b> Climate Scenario </b>"), 
+                           orientation = "h", xanchor = "center", x = 0.5, y = -0.4))
+      
+      
   })
   
   output$metadata_DT <- DT::renderDataTable({
