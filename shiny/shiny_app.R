@@ -234,8 +234,7 @@ server <- function(input, output) {
       subplot(nrows = (((num_quantiles-1)%/%3)+1), 
               shareX = TRUE, shareY = TRUE, which_layout = 1) %>% 
       layout(xaxis = list(title = paste0(input$independent_variable)),
-             legend = list(title = list("<b> Climate Scenario </b>"), 
-                           orientation = "h", xanchor = "center", x = 0.5, y = -0.4))
+             legend = list(title = list(text = "<b> Climate Scenario </b>")))
       
       
   })
