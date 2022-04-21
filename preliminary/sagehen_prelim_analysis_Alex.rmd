@@ -11,8 +11,12 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(kableExtra)
+library(lubridate)
+library(plotly)
 
 library(mgcv) # GAM
+
+options(scipen=999)
 ```
 
 # Question
@@ -26,17 +30,33 @@ df <- read_csv(here("data", "sageres.csv"))
 ```
 
 ```{r}
-library(zoo)
+df_monthly <- df 
 
-df_monthly <- df %>% 
-  group_by(year, month) %>% 
-  summarize(npp = mean(npp)) 
+day(df_monthly$date) <- 1
 
-df_monthly$date = as.yearmon(paste0(df_monthly$year, df_monthly$month, date="-"), "%Y-%M")
+df_monthly <- df_monthly %>% 
+  filter(clim==0) %>% 
+  select(-c(day, month, year, basinID, hillID, zoneID, patchID, wy, clim)) %>% 
+  mutate(topo = factor(topo), stratumID = factor(stratumID), scen = factor(scen)) %>% 
+  group_by(date) %>% 
+  summarize_if(is.numeric, mean)
 
-ggplot(data=df_monthly, aes(x=c(year, month), y=npp)) +
-  geom_point()
+p1 <- ggplot(df_monthly) +
+  geom_line(aes(x=date, y=npp), color="blue") +
+  geom_line(aes(x=date, y=precip), color="red") +
+  theme_light()
+
+p1 %>% ggplotly()
 ```
+
+```{r}
+p2 <- ggplot(df_monthly, aes(x=date, y=precip)) +
+  geom_line() +
+  theme_light()
+
+p2 %>% ggplotly()
+```
+ 
 
 
 # Visualizations

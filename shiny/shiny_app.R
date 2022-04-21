@@ -3,6 +3,7 @@
 ########## Attach Packages
 library(shiny)
 library(tidyverse)
+library(tidyselect)
 library(here)
 library(patchwork)
 library(psych)
@@ -48,7 +49,7 @@ df_wy2[,factor_vars] <- lapply(df_wy2[,factor_vars], factor)
 ######### Import the metadata and create a table out of it
 
 metadata <- read.csv(here("shiny", "aggregated_datasets", "metadata.csv")) %>% 
-  select("variable", "full_name", "description")
+  select("variable", "full_name", "units", "description")
 
 ######### Text for the welcome page
 
@@ -60,7 +61,7 @@ intro_2 <- "- The \"Visualizations\" tab will allow you explore your data's vari
 
 intro_3 <- "- Use the \"Metadata\" tab to learn more about each variable within your dataset. To add or remove variables specific to your dataset, you can do so using the metadata.Rmd file included within the github repo."
 
-intro_4 <- "- The \"Dataset Viewer\" tab allows you to view your datasets, both raw and aggregated."
+intro_4 <- "- The \"Dataset Viewer\" tab allows you to view your datasets, both raw and aggregated. Datasets get imported from the machine learning workflows. If you have not already run the workflows with your own RHESSys dataset, the default data will be from Sagehen Creek."
 
 importance_caption <- "The above graphs uses the random forest workflow to rank how important each varible is in predicting your responce variable, in this case Net Primary Productivity. The graph on the left ranks the variables in a normal climate scenario, and the graph on the right ranks the variables in a +2 degree C cliamte warming scenario."
 
@@ -181,7 +182,7 @@ server <- function(input, output) {
   # Create a reactive dataframe
   df_wy_reactive <- reactive({
     df_wy %>% 
-      mutate(quantile = paste0(ntile(!!input$facet_variable, input$quantile_sel), " Quantile")) %>% 
+      mutate(quantile = paste0("Quantile ", ntile(!!input$facet_variable, input$quantile_sel))) %>% 
       filter(stratumID %in% input$stratum_sel, 
              topo %in% input$topo_sel,
              clim %in% input$clim_sel,
@@ -216,8 +217,9 @@ server <- function(input, output) {
   
   output$datatable_viewer <- DT::renderDataTable({
     
-    DT::datatable(data_display(),
-                  options = list(pageLength = 15,
+    data_display() %>% 
+      mutate(across(where(is.numeric), round, 6)) %>% 
+      DT::datatable(options = list(pageLength = 15,
                                  initComplete = JS(
                                    "function(settings, json) {",
                                    "$(this.api().table().header()).css({'color': '#FFFFFF'});",
