@@ -208,6 +208,11 @@ gb_mod_caret = train(x = x,
 ```
 
 ## Caret/ADA
+
+https://www.analyticsvidhya.com/blog/2020/10/adaboost-and-gradient-boost-comparitive-study-between-2-popular-ensemble-model-techniques/
+
+https://datascience.stackexchange.com/questions/39193/adaboost-vs-gradient-boosting
+
 ```{r}
 # Training vs response
 y = df_wy$response
@@ -259,6 +264,17 @@ gb_model2_ada = train(x=xhot,
                         method = "xgbTree",
                         trControl = fitControl,
                         verbosity = 0)
+
+
+
+# helper function for the plots
+# tuneplot <- function(x, probs = .90) {
+#   ggplot(x) +
+#     coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+#     theme_bw()
+# }
+# 
+# tuneplot(xgb_tune)
 ```
 
 
