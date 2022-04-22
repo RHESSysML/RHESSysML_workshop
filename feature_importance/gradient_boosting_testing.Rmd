@@ -156,7 +156,10 @@ xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
 
 ```
 
+
 # Caret Package
+
+## Caret/XGB
 
 ```{r Cross-validation, message=FALSE, warning=FALSE}
 # setup for prediction
@@ -174,10 +177,7 @@ x = df_wy[-1]
 fitControl <- caret::trainControl(
   method = "cv",
   number = 10,
-  savePredictions = 'final',
-  verboseIter = TRUE,
-  classProbs = TRUE,
-  summaryFunction = twoClassSummary
+  savePredictions = 'final'
 )
 
 xgbGrid <- expand.grid(
@@ -207,27 +207,57 @@ gb_mod_caret = train(x = x,
 #                         trControl = train_control)
 ```
 
+## Caret/ADA
+```{r}
+# Training vs response
+y = df_wy$response
+x = df_wy[-1]
+
+group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
+factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
+response_var <- "npp"
+
+x[,factor_vars] <- lapply(x[,factor_vars], factor)
+
+xhot = x %>% data.table::data.table() %>% mltools::one_hot(cols = factor_vars)
+xnum = x %>% select(!factor_vars)
+```
+
+
 ```{r}
 # different boosting package
 
 set.seed(4326)
 s = 4326
 
-# Using the caret package to do 10-fold cross-validation
-train_control = caret::trainControl(method = "cv",
-                                    number = 10,
-                                    #seed = s,
-                                    allowParallel = FALSE)
+fitControl <- caret::trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final'
+)
 
-gb_model0_caret = train(npp~.,
+fitAdaboost <- caret::train(
+ # response ~ .,
+  x = xnum,
+  y = y,
+  data = df_wy,
+  trControl = fitControl,
+  tuneLength = 3,
+  metric = 'RMSE',
+  method = "adaboost",
+  verbose = FALSE
+)
+
+gb_model0_ada = train(response~.,
                         data = df_wy0,
                         method = "bstTree",
-                        trControl = train_control,
-                        verbosity = 0)
-gb_model2_caret = train(npp~.,
-                        data = df_wy2,
-                        method = "bstTree",
-                        trControl = train_control,
+                        trControl = fitControl,
+                        verbosity = FALSE)
+gb_model2_ada = train(x=xhot,
+                      y=y,
+                   #     data = df_wy2,
+                        method = "xgbTree",
+                        trControl = fitControl,
                         verbosity = 0)
 ```
 
