@@ -23,6 +23,7 @@ library(kableExtra)
 library(caret)
 library(xgboost)
 library(Ckmeans.1d.dp)
+library(mltools)
 
 # XGBoost visualization dependencies
 library(caTools)
@@ -49,44 +50,8 @@ df_wy2 <- df_wy %>%
   select(-clim)
 ```
 
-The `xgboost` package requires a numeric matrix as input, so factor variables (`topo`, `scen`, `stratumID`) need to be converted to numeric:
 
-```{r matrix_setup}
-
-npp_lab <- df_wy$npp
-
-sample_split <- sample.split(Y = df_wy$npp, SplitRatio = 0.8)
-train_set <- subset(x = df_wy, sample_split == TRUE)
-test_set <- subset(x = df_wy, sample_split == FALSE)
-
-# Specify outcome variable (supervised learning)
-npp_train <- train_set$npp
-npp_test <- test_set$npp
-
-## Convert factors to numeric for training data
-xgb_matrix_train_x <- train_set %>% 
-  mutate(stratumID = as.numeric(as.character(stratumID)),
-         scen = as.numeric(as.character(scen)),
-         topo = as.numeric(topo),
-         clim = as.numeric(clim)) %>%
-  select(-npp) %>% 
-  as.matrix() %>% 
-  xgb.DMatrix(label = npp_train)
-
-## Convert factors to numeric for testing data
-xgb_matrix_test_x <- test_set %>% 
-  mutate(stratumID = as.numeric(as.character(stratumID)),
-         scen = as.numeric(as.character(scen)),
-         topo = as.numeric(topo),
-         clim = as.numeric(clim)) %>%
-  select(-npp) %>% 
-  as.matrix() %>% 
-  xgb.DMatrix(label = npp_test)
-
-```
-
-
-# Gradient Boosting Model
+# Manual XGBoost Stuff
 
 ### Specify hyperparameters 
 
@@ -128,7 +93,6 @@ xgb_pred_df <- xgb_preds %>%
   mutate(RHESSYS_npp = npp_test)
 
 ```
-# Visualize
 
 ## XGBoost Package
 ```{r}
@@ -157,61 +121,18 @@ xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
 ```
 
 
+
 # Caret Package
 
-## Caret/XGB
-
-```{r Cross-validation, message=FALSE, warning=FALSE}
-# setup for prediction
-y = df_wy$response
-x = df_wy[-1]
-
-# some shenanigans to get the seed into the right shape to work with 10-fold cross-validation
-# s = 4326
-# seed = list()
-# for (i in 1:10) {
-#   seed[[i]] <- rep(s, 36)
-# }
-# seed[[11]] = 4326
-
-fitControl <- caret::trainControl(
-  method = "cv",
-  number = 10,
-  savePredictions = 'final'
-)
-
-xgbGrid <- expand.grid(
-  nrounds = seq(from = 400, to = 600, 30),
-  eta = c(0.01),
-  max_depth = c(2:4),
-  gamma = 0,
-  colsample_bytree = c(0.8),
-  min_child_weight = c(1, 5),
-  subsample = c(1.0)
-)
-
-gb_mod_caret = train(x = x,
-                     y = y,
-                     method = "xgbTree",
-                     trControl = fitControl,
-                     tuneGrid = xgbGrid,
-                     verbose = FALSE)
-
-# gb_model0_caret = train(response~.,
-#                         data = df_wy0,
-#                         method = "xgbTree",
-#                         trControl = train_control)
-# gb_model2_caret = train(response~.,
-#                         data = df_wy2,
-#                         method = "xgbTree",
-#                         trControl = train_control)
-```
-
-## Caret/ADA
-
+adaboost is the earliest form of gradient boosting, loss function is hard-coded so less flexible:
 https://www.analyticsvidhya.com/blog/2020/10/adaboost-and-gradient-boost-comparitive-study-between-2-popular-ensemble-model-techniques/
-
 https://datascience.stackexchange.com/questions/39193/adaboost-vs-gradient-boosting
+
+## GBM/XGB
+
+Testing different implementations of `gbm` and `xgboost` methods through `caret`
+
+All gradient boosting methods require one-hot encoding for factor variables:
 
 ```{r}
 # Training vs response
@@ -228,10 +149,10 @@ xhot = x %>% data.table::data.table() %>% mltools::one_hot(cols = factor_vars)
 xnum = x %>% select(!factor_vars)
 ```
 
+https://machinelearningmastery.com/gentle-introduction-gradient-boosting-algorithm-machine-learning/
+stochastic gradient boosting helps avoid overfitting with `gbm`: https://www.sciencedirect.com/science/article/pii/S0167947301000652
 
 ```{r}
-# different boosting package
-
 set.seed(4326)
 s = 4326
 
@@ -241,23 +162,17 @@ fitControl <- caret::trainControl(
   savePredictions = 'final'
 )
 
-fitAdaboost <- caret::train(
- # response ~ .,
-  x = xnum,
+gb_model_gbm <- caret::train(
+  #response ~ .,
+  # data = df_wy,
+  x = xhot,
   y = y,
-  data = df_wy,
-  trControl = fitControl,
-  tuneLength = 3,
+  trControl = trainControl(method = "none", seeds = 4326),
   metric = 'RMSE',
-  method = "adaboost",
+  method = "gbm",
   verbose = FALSE
 )
 
-gb_model0_ada = train(response~.,
-                        data = df_wy0,
-                        method = "bstTree",
-                        trControl = fitControl,
-                        verbosity = FALSE)
 gb_model2_ada = train(x=xhot,
                       y=y,
                    #     data = df_wy2,
@@ -265,7 +180,9 @@ gb_model2_ada = train(x=xhot,
                         trControl = fitControl,
                         verbosity = 0)
 
+predict(gb_model2_ada)
 
+plot(gb_model2_ada)
 
 # helper function for the plots
 # tuneplot <- function(x, probs = .90) {
@@ -291,7 +208,7 @@ We can look at the optimized tuning parameters using the `bestTune` feature of t
 
 ```{r}
 params0 = gb_model0_caret$bestTune
-params2 = gb_model2_caret$bestTune
+params2 = gb_model2_ada$bestTune
 ```
 
 In the interest of efficiency, we can look at how long it took each model to train:
@@ -301,7 +218,7 @@ In the interest of efficiency, we can look at how long it took each model to tra
 
 # Gradient Boosting Models:
 gb_model0_caret$times
-gb_model2_caret$times
+gb_model2_ada$times
 ```
 
 Find variable importance:
