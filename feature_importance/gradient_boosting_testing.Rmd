@@ -152,9 +152,12 @@ xnum = x %>% select(!factor_vars)
 https://machinelearningmastery.com/gentle-introduction-gradient-boosting-algorithm-machine-learning/
 stochastic gradient boosting helps avoid overfitting with `gbm`: https://www.sciencedirect.com/science/article/pii/S0167947301000652
 
+-------------------------------------------
+full cv, gbm
+
 ```{r}
+
 set.seed(4326)
-s = 4326
 
 fitControl <- caret::trainControl(
   method = "cv",
@@ -162,9 +165,20 @@ fitControl <- caret::trainControl(
   savePredictions = 'final'
 )
 
-gb_model_gbm <- caret::train(
-  #response ~ .,
-  # data = df_wy,
+gbm_model_cv <- caret::train(
+  x = xhot,
+  y = y,
+  trControl = fitControl,
+  metric = 'RMSE',
+  method = "gbm",
+  verbose = FALSE
+)
+```
+
+-------------------------------------
+late cv, gbm
+```{r}
+gbm_model <- caret::train(
   x = xhot,
   y = y,
   trControl = trainControl(method = "none", seeds = 4326),
@@ -172,15 +186,17 @@ gb_model_gbm <- caret::train(
   method = "gbm",
   verbose = FALSE
 )
+```
 
-gb_model2_ada = train(x=xhot,
+
+----------------------------------------------
+full cv, xgboost
+```{r}
+xgb_model_cv = train(x=xhot,
                       y=y,
-                   #     data = df_wy2,
-                        method = "xgbTree",
-                        trControl = fitControl,
-                        verbosity = 0)
-
-predict(gb_model2_ada)
+                      method = "xgbTree",
+                      trControl = fitControl,
+                      verbosity = 0)
 
 plot(gb_model2_ada)
 
@@ -193,6 +209,40 @@ plot(gb_model2_ada)
 # 
 # tuneplot(xgb_tune)
 # from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
+```
+
+--------------------------------
+late cv, xgboost
+
+```{r}
+xgb_model <- caret::train(
+  x = xhot,
+  y = y,
+#  trControl = trainControl(method = "none", seeds = 4326),
+  metric = 'RMSE',
+  method = "xgbTree",
+  verbose = FALSE
+)
+
+# why does `xgboost` take so much longer than `gbm` in the non-cv model?
+# maybe this actually doesn't work, just use caret's built-in cv
+```
+
+Comparison of prediction results
+
+```{r}
+# predict(gbm_model, xhot)
+# predict(xgb_model, xhot)
+predict(gbm_model_cv, xhot)
+predict(xgb_model_cv, xhot)
+```
+
+```{r}
+gbm_model_cv$results$RMSE
+gbm_model_cv$results$Rsquared
+
+xgb_model_cv$results$RMSE
+xgb_model_cv$results$Rsquared
 ```
 
 
