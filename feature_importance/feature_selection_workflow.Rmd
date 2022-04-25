@@ -206,9 +206,15 @@ Along with this workflow, this repo also contains a Shiny App. The Shiny App can
 ```{r}
 # For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
 
-# write.csv(df_wy, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
-# write.csv(df_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
-# write.csv(df_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
+# Create and export dataframes that change the response column name back to the variable itself to be used in the Shiny app.
+
+# df_export <- rename(.data = df_wy, !!response_var := response)
+# df_export_wy0 <- rename(.data = df_wy0, !!response_var := response)
+# df_export_wy2 <- rename(.data = df_wy2, !!response_var := response)
+
+# write.csv(df_export, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
+# write.csv(df_export_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
+# write.csv(df_export_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
 ```
 
 

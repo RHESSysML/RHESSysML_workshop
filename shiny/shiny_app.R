@@ -38,7 +38,7 @@ imp_wy2 <- read.csv(here("shiny", "aggregated_datasets", "imp_wy2.csv")) %>%
 
 ########## User Inputs
 factor_vars <- c("stratumID", "scen", "topo")
-response_var <- df_wy$response
+response_var <- colnames(df_wy[1])
 
 # Convert categorical variables to factors
 df_wy[,factor_vars] <- lapply(df_wy[,factor_vars], factor)
@@ -76,7 +76,7 @@ dataset_sel <- selectInput(inputId = "dataset_sel",
                            selected = "Aggregated Data")
 
 stratum_sel <- checkboxGroupInput("stratum_sel",
-                                  label = tags$h4("Select desired stratum to look at:"),
+                                  label = tags$h4("Select desired strata to look at:"),
                                   choices = unique(df_wy$stratumID),
                                   selected = unique(df_wy$stratumID))
 
@@ -115,7 +115,7 @@ independent_variable <- varSelectInput(inputId = "independent_variable",
                                        selected = "precip")
 
 facet_variable <- varSelectInput(inputId = "facet_variable",
-                                 label = tags$h4("Select variable to facet by:"),
+                                 label = tags$h6("Here you can pick a variable to facet the graph by. This allows you to see how the relationships between your independent and dependent variables change at different levels of your facet variable. This takes the range of your facet variable and splits the data into even quantiles. Select variable to facet by here:"),
                                  data = df_wy,
                                  selected = "rz_storage")
 
@@ -181,6 +181,18 @@ server <- function(input, output) {
   
   # Create a reactive dataframe
   df_wy_reactive <- reactive({
+    
+    validate(
+      
+      need(length(input$stratum_sel) > 0, 
+           "No data contained in selected strara. Please select more strata."),
+      need(length(input$topo_sel) > 0, 
+           "No data contained in selected topographies. Please select more topography types."),
+      need(length(input$clim_sel) > 0, 
+           "Must have atleast one climate scenario selected.")
+      
+    )
+    
     df_wy %>% 
       mutate(quantile = paste0("Quantile ", ntile(!!input$facet_variable, input$quantile_sel))) %>% 
       filter(stratumID %in% input$stratum_sel, 
@@ -190,12 +202,14 @@ server <- function(input, output) {
   })
   
   output$variable_plot <- renderPlot({
-    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, y = response)) +
+    ggplot(data = df_wy_reactive(), aes(x = !!input$independent_variable, 
+                                        y = df_wy_reactive()[,response_var])) +
       geom_point(aes(color = clim)) +
       geom_smooth(se = FALSE, method = lm, color = "#B251F1") +
       scale_color_manual(values = c("0" = "#FEA346", 
                                     "2" = "#4BA4A4")) +
-      labs(color = "Climate Scenario") +
+      labs(color = "Climate Scenario",
+           y = response_var) +
       facet_wrap(~ quantile) +
       theme(text = element_text(size = 17))
   })
