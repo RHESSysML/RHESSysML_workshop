@@ -22,6 +22,10 @@ The code below is written with Net Primary Productivity (NPP) as the response va
 
 # Setup
 
+## renv:
+
+To help ensure reproducibility, the packages and package versions used to build this workflow have been saved via [`renv`](https://rstudio.github.io/renv/articles/renv.html). To download any missing packages and load the correct versions, run the command `renv::restore()` in the console. Doing so will not impact your package versions outside of this R Project. It may take several minutes depending on the number of discrepancies.
+
 ```{r setup, include = TRUE, warning=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
