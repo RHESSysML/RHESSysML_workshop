@@ -7,6 +7,11 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(caret)
+library(patchwork)
 ```
 
 ## Purpose
@@ -28,6 +33,8 @@ load(here("testing", "saved_output", "conditional_output_wy2.RData"))
 ## Partial vs conditonal permutation importance
 
 Partial permutation importance---which is the primary importance measure used in our workflow---looks at the increase in model error incurred when the values of a particular variable are permuted. The idea is that the more important a variable is as a predictor of the response variable, the more permuting the values of that variable will increase model error.
+
+Conditional permutation importance also permutes variable values in this way, but attempts to determine importance _conditional_ on the other variables in the model. Calculating this value is less intuitive to explain and is more mathematically involved---more information about conditional permutation importance can be found in the following paper: [Debeer and Strobl 2020](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2).
 
 ### Climate scenario 0
 
@@ -52,7 +59,7 @@ conditional_imp_wy0 <- as.data.frame(conditional_output_wy0$values) %>%
 partial_imp_wy0 + conditional_imp_wy0
 ```
 
-### Climate scenario 0
+### Climate scenario 2
 
 ```{r}
 # Partial permutation importance using climate scenario 0 data
