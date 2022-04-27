@@ -1,5 +1,5 @@
 ---
-title: "Feature Selection Framework"
+title: "Gradient Boosting Workflow Variation"
 author: "RHESSysML Capstone Group"
 date: "2/5/2022"
 output: 
@@ -10,15 +10,9 @@ output:
     theme: cerulean
 ---
 
-# Introduction
+# Introduction to Gradient Boosting
 
-[RHESSys](https://github.com/RHESSys/RHESSys/wiki) output provides multiple variables that describe the response of  ecosystem biogeochemical cycling and hydrology to climate (and land use) drivers. This R Markdown document describes a workflow to apply machine learning techniques (Random Forest and Gradient Boosting) to RHESSys model output. The specific goal is to determine the most important relationships between RHESSys predictor variables and a chosen response variable in a programmatic, efficient, and reproducible manner. Permutation Importance will be our primary metric for what determines the importance of variables within each machine learning model, but additional metrics will be discussed to help you choose whether Random Forest or Gradient Boosting is a more appropriate class of model to use.
-
-If you don’t know what Permutation Importance is right now, don’t worry! This workflow is written with ecologists in mind, not machine learning engineers or computer scientists. The details of Random Forest, Gradient Boosting, and Permutation Importance will be explained throughout the course of the document.
-
-Specific code examples in this document will be based on RHESSys model output from the Sagehen Creek Experimental Watershed in the Sierra Nevada, CA. The data set incorporates model parameter uncertainty and topographic variability under two separate climate warming scenarios: (1) Historic temperature levels, and (2) Two degrees Celsius warming. The dataset and associated metadata can be accessed [here](https://www.hydroshare.org/resource/2a31bd57b7e74c758b7857679ffbb4c5/). 
-
-The code below is written with Net Primary Productivity (NPP) as the response variable of interest: this means that the output of this example will offer an answer to the question: What are the most important hydroecological factors that affect NPP in an ecosystem like Sagehen Creek, _and how might that relative importance change in a warming climate?_
+This workflow is meant as a compliment to the Random Forest workflow, found [here](). While Random Forest is a "quick and easy" machine learning technique that has bee used to determine variable importance for ecohydrological models like RHESSys, it is far from the only method that can be used for this purpose. While the scope of this project does not allow a full exploration of all the possibilities of 
 
 # Setup
 
@@ -48,7 +42,8 @@ library(randomForestExplainer)
 library(fastshap)
 ```
 
-# Data Preparation
+
+# Data Preparation (will end up in separate .Rmd anyways)
 
 ## Load Data
 
@@ -218,7 +213,8 @@ Along with this workflow, this repo also contains a Shiny App. The Shiny App can
 ```
 
 
-# Data Description
+
+# Data Description (remove bc redundancy?)
 
 Next, we want to get a summary description of the data set. This is crucial for many reasons:
 
@@ -310,7 +306,9 @@ Below, there are two methods for setting preference order: (1) Manually creating
 #pref_order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
-2. Run this chunk to allow preliminary random forest to automatically determine preference order.
+2. Run this chunk to allow preliminary random forest to automatically determine preference order. Note: even though we will be using Gradient Boosting her for the actual analysis, prelimenary impostance is set using a Random Forest because it is faster.
+
+**looking into child documents to clean up some of this stuff, esp in GB workflow but could be nice in RF one too**
 
 ```{r auto_preference_order, warning=FALSE}
 # First climate scenario
@@ -565,97 +563,139 @@ plot_removed_imp(clim = 2)
 plot_removed_vif(clim = 2)
 ```
 
-# Feature Importance
 
-With multicollinearity reduced, the importance of predictor variables can be estimated using Random Forest and partial permutation importance. In this framework, we use Random Forest because it has been shown to be an effective tool in assessing feature importance in numerous applications including ecological analysis (Cutler et al. 2007; Prasad et al. 2006). Additionally, Random Forest requires relatively less hyper-parameter tuning than other common techniques. 
+# Feature Importance with Gradient Boosting
 
-### Hyper-Parameter Tuning
+## Parameter Tuning
 
-An essential part of building a machine learning model is tuning hyper-parameters. This entails altering parameters which the user has control over in order to attain an optimal model accuracy. The following tuning process has been automated and only involves `mtry`---the primary parameter that requires adjustment in a Random Forest.
+There is a bit more complexity that goes into tuning a Gradient Boosting model than a Random Forest. The `expand.grid()` function will allow us to test multiple values of each parameter to optimize model performance. Some of the standard hyperparameters that we will tune here are:
 
-The `mtry` parameter determines the number of variables randomly sampled as candidates at each split. The default value for regression is p/3, where p is the number of predictor variables.
+ - `nrounds` (# Boosting Iterations)
+ - `max_depth` (Max Tree Depth)
+ - `eta` (Shrinkage)
+ - `gamma` (Minimum Loss Reduction)
+ - `colsample_bytree` (Subsample Ratio of Columns)
+ - `min_child_weight` (Minimum Sum of Instance Weight)
+ - `subsample` (Subsample Percentage)
+ 
+Out of all these parameters, all except `nrounds` are used to prevent overfitting, which is a more common problem in boosting models than RFs. The inherent randomness of RFs prevents overfitting relatively effectively, but more care is required with GB. For example, the `colsample_bytree` parameter mimics the functionality of a RF by randomly sampling the specified proportions of columns to build a boosted tree.
 
-The function below creates a vector of accuracy results of random forests using different values for `mtry`.
+Additionally, we will use `trainControl()` to implement 10-fold cross-validation to further avoid overfitting.
 
-```{r tuning_function}
-df_wy0_reduced <- as.data.frame(df_wy0_reduced)
-df_wy2_reduced <- as.data.frame(df_wy2_reduced)
+```{r}
 
-tune_rf_model <- function(df) {
-  
-  tuning <- vector(length = (ncol(df)-1))
-  
-  x = df[,-1]
-  y = df[,1]
-  
-  for (i in 1:length(tuning)) {
-    rf_tuning <- randomForest(x, y, mtry = i, ntree = 50)
-    tuning[i] <- tail(rf_tuning$mse, 1)
-  }
-  
-  return(tuning)
-}
+fitControl <- caret::trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final'
+)
 
+tune_grid <- expand.grid(
+  nrounds = seq(from = 100, to = 800, by = 50),
+  eta = c(0.01, 0.02, 0.05, 0.1, 0.3),
+  max_depth = c(2, 3, 4, 5, 6), 
+  gamma = c(0, 10, 50),
+  colsample_bytree = c(.5, .7, .8, 1),
+  min_child_weight = 1,
+  subsample = c(.5, .7, .8, 1))
 ```
 
-Next, we run the function for both climate scenario data sets and visualize the results. Model error here is assessed using out-of-bag (OOB) observations in the data, which refers to observations that were not sampled during bootstrapping for the particular Random Forest being assessed. In other words OOB data were not used to train the model and can be used to test accuracy without the risk of bias incurred from model over-fitting. The best `mtry value` in the plots below will be represented by the lowest `OOB Error`.
+-------------------------------------------
+full cv, gbm
 
-```{r tune_rf_wy0, warning = FALSE}
+
+```{r}
 set.seed(4326)
 
-mtry0 <- tune_rf_model(df_wy0_reduced)
-bestmtry0 <- match(min(mtry0), mtry0)
-ggplot(data = as.data.frame(mtry0), aes(x = 1:length(mtry0), y = mtry0)) +
-  geom_vline(xintercept = bestmtry0, linetype = "dashed") +
-  geom_point() +
-  geom_line() +
-  theme_light() +
-  labs(x = "mtry value",
-       y = "OOB Error",
-       title = paste0("The best mtry value for ", deparse(substitute(df_wy0_reduced)), " is ", bestmtry0))
+gbm_model_cv <- caret::train(
+  x = xhot,
+  y = y,
+  trControl = fitControl,
+  tuneGrid = tune_grid,
+  metric = 'RMSE',
+  method = "gbm",
+  verbose = FALSE
+)
 ```
 
-```{r tune_rf_wy2, warning = FALSE}
-set.seed(4326)
+----------------------------------------------
+full cv, xgboost
+```{r}
+xgb_model_cv = train(x=xhot,
+                      y=y,
+                      method = "xgbTree",
+                      trControl = fitControl,
+                      tuneGrid = tune_grid,
+                      verbosity = 0)
 
-mtry2 <- tune_rf_model(df_wy2_reduced)
-bestmtry2 <- match(min(mtry2), mtry2)
-ggplot(data = as.data.frame(mtry2), aes(x = 1:length(mtry2), y = mtry2)) +
-  geom_vline(xintercept = bestmtry2, linetype = "dashed") +
-  geom_point() +
-  geom_line() +
-  theme_light() +
-  labs(x = "mtry value",
-       y = "OOB Error",
-       title = paste0("The best mtry value for ", deparse(substitute(df_wy2_reduced)), " is ", bestmtry2))
+plot(xgb_model_cv)
+
+# helper function for the plots
+# tuneplot <- function(x, probs = .90) {
+#   ggplot(x) +
+#     coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+#     theme_bw()
+# }
+# 
+# tuneplot(xgb_tune)
+# from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
 ```
 
-The best `mtry` value for each data set is used for the respective random forest model below.
 
-### Random Forest Models
+Comparison of prediction results
 
-```{r get_random_forests}
-rf_wy0 <- train(x = df_wy0_reduced %>% select(!response),
-                y = df_wy0_reduced$response,
-                method = 'rf',
-                .mtry = bestmtry0,
-                ntree = 500,
-                importance = TRUE,
-                replace = TRUE,
-                keep.forest = TRUE,  # necessary for permimp
-                keep.inbag = TRUE,  # necessary for permimp
-                trControl = trainControl(method = "none", seed = 4326)) # to use 10-fold cross validation, method = "cv", number = 10
+```{r}
+predict(gbm_model_cv, xhot)
+predict(xgb_model_cv, xhot)
+```
 
-rf_wy2 <- train(x = df_wy2_reduced %>% select(!response),
-                y = df_wy2_reduced$response,
-                method = 'rf',
-                .mtry = bestmtry2,
-                ntree = 500,
-                importance = TRUE,
-                replace = TRUE,
-                keep.forest = TRUE,  # necessary for permimp
-                keep.inbag = TRUE,  # necessary for permimp
-                trControl = trainControl(method = "none", seed = 4326)) # to use 10-fold cross validation, method = "cv", number = 10
+```{r}
+gbm_model_cv$results$RMSE
+gbm_model_cv$results$Rsquared
+
+xgb_model_cv$results$RMSE
+xgb_model_cv$results$Rsquared
+```
+
+
+We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
+
+```{r}
+params0 = xgb_model_cv$bestTune
+params2 = gbm_model_cv$bestTune
+```
+
+
+Find variable importance:
+
+```{r}
+# might try with `gbm` instead of `xgb` to be compatible with varImp()?
+
+xgb_imp = varImp(xgb_model_cv, scale = FALSE)
+list_impx = xgb_impx$importance
+list_impx = list_impx %>% mutate(Variable = row.names(list_impx)) %>% 
+  filter(list_impx$Overall != 0)
+
+gbm_imp = varImp(gbm_model_cv, scale = FALSE)
+list_imp = gbm_imp$importance
+list_imp = list_imp %>% mutate(Variable = row.names(list_imp)) %>% 
+  filter(list_imp$Overall != 0)
+
+```
+
+
+```{r}
+# default plotting function
+plot(xgb_imp, top = 15)
+plot(gbm_imp, top = 15)
+
+
+# using plotting function from rf workflow
+xgb_plot <- plot_imp(list_impx)
+gbm_plot <- plot_imp(list_imp)
+
+wy0_plot + wy2_plot 
+
 ```
 
 Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Despite some of their shortcomings, these importance measures can provide insights are further explored at the end of this document.
@@ -801,175 +841,3 @@ Let's save the above importance plots to be used in the Shiny App.
 importance_plots <- wy0_plot + wy2_plot 
 ggsave(importance_plots, filename = "importance_plots.png", path = here("shiny", "www"))
 ```
-
-## Previewing relationships between important predictors and NPP
-
-The variable importance values derived from our Random Forest model allow us to investigate interesting relationships and interactions between the response term and important predictors. Below, we investigate how NPP's relationship with the most important predictor is impacted by changes in other predictors in the model.
-
-
-```{r}
-get_important_predictors <- function(df_imp, rank) {
-  df_imp$Variable[df_imp$Rank == rank]
-}
-
-# assigning first and second most important variables to objects
-pred1_clim0 <- get_important_predictors(imp_wy0, 1)
-pred2_clim0 <- get_important_predictors(imp_wy0, 2)
-pred1_clim2 <- get_important_predictors(imp_wy2, 1)
-pred2_clim2 <- get_important_predictors(imp_wy2, 2)
-
-create_binned_df <- function(df_wy) {
-  df_pred_binned <- df_wy %>% 
-  select(all_of(pred1_clim0), all_of(pred2_clim0), response) %>%
-  mutate(pred1 = df_wy[[pred1_clim0]],
-         pred2 = df_wy[[pred2_clim0]]) %>% 
-  mutate(bin = as.numeric(ntile(pred2, 4)))
-  
-  return(df_pred_binned)
-}
-
-df0_pred_binned <- create_binned_df(df_wy0)
-df2_pred_binned <- create_binned_df(df_wy2)
-```
-
-```{r}
-ggplot(df0_pred_binned, aes(x = pred1, y = .data[["response"]])) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  labs(x = str_to_title(pred1_clim0), y = response_var,
-       title = paste(pred1_clim0, "vs", response_var,
-                     "in 0 degree climate scenario")) +
-  theme_minimal()
-
-create_binned_plot <- function(df_binned) {
-  df_name <- deparse(substitute(df_binned))
-  if (df_name == "df0_pred_binned") {
-    p1 = pred1_clim0
-    p2 = pred2_clim0
-    scen = "0"
-  }
-  if (df_name == "df2_pred_binned") {
-    p1 = pred1_clim2
-    p2 = pred2_clim2
-    scen = "2"
-  }
-  
-  ggplot(df_binned, aes(x = pred1, y = .data[["response"]])) +
-    geom_point() +
-    geom_smooth(method = "lm") +
-    facet_wrap("bin") +
-    labs(x = str_to_title(pred1_clim0), y = response_var,
-         title = paste(p1, "vs", response_var, "given different value classes of",
-                       p2, "\n in", scen, "degree climate scenario")) +
-    theme_minimal()
-}
-
-create_binned_plot(df0_pred_binned)
-create_binned_plot(df2_pred_binned)
-```
-
-Variable interactions can be investigated in many ways. The bivariate partial dependence plot below provides a graphical depiction of the marginal effect of two variables on predicted NPP from the random forest model.
-
-```{r}
-bivariate.partialDependence(x = rf_wy0$finalModel,
-                            pred.data = df_wy0_reduced_allpredictors,
-                            v1 = pred1_clim0,
-                            v2 = pred2_clim0,
-                            grid.size = 15,
-                            col.ramp = c("orange", "green"),
-                            ncols = 20)
-```
-
-Running this plot for both data sets can demonstrate how variable interactions shift given different climate scenarios.
-
-```{r}
-bivariate.partialDependence(x = rf_wy2$finalModel,
-                            pred.data = df_wy2_reduced[-1],
-                            v1 = pred1_clim2,
-                            v2 = pred2_clim2,
-                            grid.size = 15,
-                            col.ramp = c("orange", "green"),
-                            ncols = 20)
-```
-
-Variable interactions between two predictors and the corresponding NPP predictions from the random forest model can be displayed as a grid of values.
-
-Below, the x-axis represents values of `rz_storage` , y-axis represents values of `precip` , and the cell colors/values represent predicted values of `npp` , with red indicating high and blue indicating low. For this interaction, we can see that high values of precipitation and root-zone storage result in higher predictions of NPP. This is only true for root zone storage given high precipitation, while high precipitation at all levels of root zone storage predicts relatively higher NPP. This is another indicator that it is an important predictor.
-
-```{r}
-# plot_predict_interaction(rf_wy0$finalModel, df_wy0_reduced, 
-#                          "rz_storage", "precip",
-#                          grid = 50) # smaller grid values reveal more general relationships
-```
-
-## Comparison with other measures of importance
-
-The capstone team chose to use permutation importance above as our main representation of importance. However there are other potential methods of determining relative importance from random forest models that are demonstrated below. Note that the interpretation of these measures, as discussed in the original justification of using permutation importance, is limited due to characteristics of RHESSys data. Namely, the presence of both categorical and continuous variables, differing number of classes in categorical variables, differing scales of numeric variables, and potential remaining multicollinearity all have greater potential to skew the results of the methods below.
-
-The plot below presents the top 10 variables using % mean decrease in accuracy (%IncMSE) and mean decrease in node impurity (IncNodePurity). %IncMSE is computed from permuting the out-of-bag data, while IncNodePurity is the mean total decrease in node impurities from splitting on the given variable, as measured by the residual sum of squares.
-
-```{r}
-varImpPlot(rf_wy0$finalModel, n.var = 10, main = "Comparing variable importance measures for climate scenario 0")
-```
-
-The plot below visualizes the distribution of minimum depth from the random forest model. Low values, such as for precipitation below, indicate that many observations are divided into groups based on that variable.
-
-```{r}
-min_depth_frame <- min_depth_distribution(rf_wy0$finalModel)
-
-plot_min_depth_distribution(min_depth_frame,
-                            mean_sample = "relevant_trees")
-```
-
-SHapley Additive exPlanations (SHAP) values interpret the marginal contributions of individual features. This allows visualization of the direction of the relationships between predictors and the response variable.
-
-```{r}
-explain0 <- explain(object = rf_wy0$finalModel,
-                    X = subset(df_wy0_reduced, select = -response),
-                    pred_wrapper = predict)
-
-autoplot(explain0, type = "contribution", feature = "response")
-```
-
-Lastly, while permutation importance is an appropriate measurement for this use case and many models beyond just random forest, this approach has been shown to be biased towards correlated predictor variables (Strobl et al. 2008). Conditional permutation importance (CPI) is a measure that seeks to assess importance of each feature *conditionally* on the other features in the model. This approach tends to offer less biased results and has been used to assess ecosystem dynamics (Strobl et al. 2008). Here we use a recent implementation of CPI developed by Strobl and Debeer (2020), via their `permimp` package. Previously, this bias was addressed by removing highly correlated variables from the datasets.
-
-```{r permimp, warning = FALSE}
-# imp_wy0 <- permimp(rf_wy0$finalModel, do_check = FALSE, progressBar = FALSE)
-# 
-# imp_wy2 <- permimp(rf_wy2$finalModel, do_check = FALSE, progressBar = FALSE)
-
-# imp_to_table <- function(imp) {
-#   df_permimp <- imp$values %>%
-#     data.frame() %>% 
-#     rownames_to_column("Variable") %>% 
-#     rename("Importance" = ".") %>% 
-#     mutate(Rank = rank(-Importance))
-# }
-# 
-# df_imp_wy0 <- imp_to_table(imp_wy0)
-# df_imp_wy2 <- imp_to_table(imp_wy2)
-
-# plot_imp <- function(imp_df) {
-#   df_name <- deparse(substitute(imp_df))
-#   ggplot(data = imp_df, aes(x = Importance, y = reorder(Variable, Importance))) +
-#     geom_col() +
-#     theme_light() +
-#     theme(legend.position = "none",
-#           axis.text.x = element_blank()) +
-#     labs(title = paste0("Variable Importance for \n", df_name),
-#          x = "Importance",
-#          y = "Variable")
-# }
-```
-
-# References
-
-Cutler, D. Richard, Thomas C. Edwards, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. 2007. "Random Forests for Classification in Ecology." *Ecology* 88 (11): 2783--92. <https://doi.org/10.1890/07-0539.1>.
-
-Debeer, Dries, and Carolin Strobl. 2020. "Conditional Permutation Importance Revisited." *BMC Bioinformatics* 21 (1): 307. <https://doi.org/10.1186/s12859-020-03622-2>.
-
-Prasad, Anantha M., Louis R. Iverson, and Andy Liaw. 2006. "Newer Classification and Regression Tree Techniques: Bagging and Random Forests for Ecological Prediction." *Ecosystems* 9 (2): 181--99. <https://doi.org/10.1007/s10021-005-0054-1>.
-
-Strobl, Carolin, Anne-Laure Boulesteix, Achim Zeileis, and Torsten Hothorn. 2007. "Bias in Random Forest Variable Importance Measures: Illustrations, Sources and a Solution." *BMC Bioinformatics* 8 (1): 25. <https://doi.org/10.1186/1471-2105-8-25>.
-
-Strobl, Carolin, Anne-Laure Boulesteix, Thomas Kneib, Thomas Augustin, and Achim Zeileis. 2008. "Conditional Variable Importance for Random Forests." *BMC Bioinformatics* 9 (1): 307. <https://doi.org/10.1186/1471-2105-9-307>.
