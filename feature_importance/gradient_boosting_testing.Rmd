@@ -46,7 +46,7 @@ All gradient boosting methods require one-hot encoding for factor variables:
 df_wy <- read_csv(here("shiny", "aggregated_datasets", "df_wy.csv"))
 
 # Training vs response
-y = df_wy$response
+y = df_wy$npp
 x = df_wy[-1]
 
 group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
@@ -93,6 +93,14 @@ tune_grid <- expand.grid(
   colsample_bytree = c(.5, .7, .8, 1),
   min_child_weight = 1,
   subsample = c(.5, .7, .8, 1))
+
+# different names for `gbm`
+gbm_grid <- expand.grid(
+  n.trees = seq(from = 100, to = 800, by = 50),
+  shrinkage = c(0.01, 0.02, 0.05, 0.1, 0.3),
+  interaction.depth = c(2, 3, 4, 5, 6), 
+  n.minobsinnode = c(10, 30, 50))
+
 ```
 
 -------------------------------------------
@@ -106,7 +114,7 @@ gbm_model_cv <- caret::train(
   x = xhot,
   y = y,
   trControl = fitControl,
-  tuneGrid = tune_grid,
+  tuneGrid = gbm_grid,
   metric = 'RMSE',
   method = "gbm",
   verbose = FALSE
@@ -116,12 +124,17 @@ gbm_model_cv <- caret::train(
 ----------------------------------------------
 full cv, xgboost
 ```{r}
+install.packages("tictoc")
+library(tictoc)
+
+tic()
 xgb_model_cv = train(x=xhot,
                       y=y,
                       method = "xgbTree",
                       trControl = fitControl,
                       tuneGrid = tune_grid,
                       verbosity = 0)
+toc()
 
 plot(xgb_model_cv)
 
@@ -134,6 +147,17 @@ plot(xgb_model_cv)
 # 
 # tuneplot(xgb_tune)
 # from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
+```
+These models take a **LONG** time to train because of the number of hyperparameter combinations being tested - in effect, the `xgb_model_cv` object is actually about 19,000 separate boosted models, with different hyperparameters defined through `expand.grid()`. We suggest you **NOT** run them yourself! Instead, we have saved these models as objects in the `models` subdirectory of this project - the trained models can be quickly loaded from there to perform the necessary comparisons. 
+
+```{r}
+# save the models (one time only)
+saveRDS(gbm_model_cv, here("models/GBm.rds"))
+saveRDS(xgb_model_cv, here("models/xGB.rds"))
+
+# read in models from file (all future access)
+gbm_model_cv = readRDS(here("models/GBm.rds"))
+xgb_model_cv = readRDS(here("models/xGB.rds"))
 ```
 
 
