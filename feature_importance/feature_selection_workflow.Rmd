@@ -52,173 +52,8 @@ library(randomForestExplainer)
 library(fastshap)
 ```
 
-# Data Preparation
-
-## Load Data
-
-```{r load_data, message = FALSE}
-df <- read_csv(here("data", "sageres.csv")) 
-```
-
-## Clean and Aggregate Data
-
-First, RHESSys output will need to be aggregated and cleaned based on specific research question. Possible changes include:
-
-1.  Changing the temporal resolution (i.e. Daily to Yearly measurements).
-
-2.  Converting variable units (i.e. Radians to Degrees).
-
-3.  Converting variable class (i.e. numeric/character to factor).
-
-4.  Creating derived variables (i.e. Peak SWE).
-
-This workflow assumes that the data are aggregated by water year. The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable. Change the inputs below to apply to your dataset in whatever way necessary (you might want to include variables that  differentiate the conditions used for a single RHESSys simulation -  examples might be treatment type, location, climate model scenario). 
-
-The `group_cols` object selects the columns that the user wants the raw dataset to be aggregated by. 
-
-The `factor_vars` object are the predictor variables that will be converted to factors, which allows the random forest workflow to function. Any predictor variables that should be factors instead of numeric or character should be converted. (Example: stratumID is numeric, but because there are 6 different strata, it makes more sense for them to be factors.)
-
-The `response_var` object is the response variable that the user wants to predict. There should only be one response variable.
-
-```{r user_inputs}
-group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
-factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
-response_var <- "npp"
-```
-
-```{r input_tests}
-# Check class types
-if (class(group_cols) != "character") {
-  stop("The group columns specified above should be written as characters.")
-}
-if (class(factor_vars) != "character") {
-  stop("The factor columns specified above should be written as characters.")
-}
-if (class(response_var) != "character") {
-  stop("The response variable column specified above should be written as a character.")
-}
-
-# Check for factors with many categories
-for (column in factor_vars) {
-  num_categories = n_distinct(df[,column])
-  if (num_categories > 50) {
-    warning(paste(column, "has", num_categories, "categories, should this column be numeric?"))
-  }
-}
-```
-
-Since temporal aggregation of the data set is critical to the results, we first create a function that allows us to dynamically select whether monthly or seasonal average temperatures are included as predictor variables. Setting `resolution = 'season'` does seasonal average temperatures, and `resolution = 'month'` does monthly average temperatures. By default, this function is set up to do seasonal average temperatures, and the seasons are:
-
-Winter = Dec, Jan, Feb, March
-Spring = April, May
-Summer = June, July, Aug, Sep
-Fall = Oct, Nov
-
-It is possible to reassign different months to different seasons within the function as well. 
-
-```{r aggregate_temp_function}
-aggregate_temp <- function(df, 
-                           resolution = 'season', 
-                           winter = c(12, 1, 2, 3),
-                           spring = c(4, 5),
-                           summer = c(6, 7, 8, 9),
-                           fall = c(10, 11)) {
-  
-  if (resolution == 'month') {
-    months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-    for (i in seq_along(months)) {
-      column_name <- paste0(months[i], '_tavg')
-      df_temp_agg[[column_name]] <- mean(df_temp_agg$tavg[df_temp_agg$month == i])
-    }
-  }
-  
-  if (resolution == 'season') {
-    df_temp_agg <- df %>%
-      mutate(winter_tavg = mean(tavg[month %in% (winter)]),
-             spring_tavg = mean(tavg[month %in% (spring)]),
-             summer_tavg = mean(tavg[month %in% (summer)]),
-             fall_tavg = mean(tavg[month %in% (fall)])) 
-  }
-  
-  return(df_temp_agg)
-  
-  warning("If the season arguments are left blank, this function defaults to winter = c(12, 1, 2, 3), spring = c(4, 5), summer=c(6, 7, 8, 9), fall = c(10, 11)")
-}
-```
-
-Here is where the categorical variables from the `factor_vars` object (explained above) get converted to factors. This is necessary for the Random Forest procedure to run. 
-
-```{r convert_to_factors}
-# Convert categorical variables to factors
-df[,factor_vars] <- lapply(df[,factor_vars], factor)
-
-```
-
-Next, for our example, there were some changes that needed to be made that may or may not apply to your dataset. For this example, we are changing `slope` and `aspect` from radians to degrees, aggregating by water year, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. We decided to create columns for `peak_swe` and `swe_precip_ratio` because we thought they would be important variables in determining the response variable in our example, which was net primary productivity. This code chuck is where you add your own derived variables that may be important to your analysis. If you wish to aggregate your data in a way different than in our example, this is also the code chunk to do that in.
-
-```{r prepare_data}
-# Change aspect and slope from radians to degrees
-df <- df %>% 
-  mutate(aspect = aspect*(180/pi),
-         slope = slope*(180/pi))
-
-# Group by chosen columns
-df_wy <- df %>%   
-  group_by(across(all_of(group_cols)))
-
-# Aggregate average temperatures using the aggregate_temp() function defined above.
-df_wy <- aggregate_temp(df_wy, 'season')
-
-# Create features for peak swe and the peak_swe/precip ratio
-df_wy <- df_wy %>% 
-  mutate(peak_swe = max(swe)) %>%
-  mutate(swe_precip_ratio = peak_swe/sum(precip)) %>% 
-  summarise_if(is.numeric, mean) %>% 
-  ungroup()
-
-# Rename chosen response variable to "response"
-df_wy <- df_wy %>% 
-  rename("response" = response_var)
-
-# Reorder response variables first and remove any unwanted variables
-df_wy <- df_wy %>% 
-  select(response, everything()) %>%
-  select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
-```
-
-Here, we split our data into two separate data frames, one for each climate scenario. This will allow us to analyze the impact of  climate on variable importance by calculating different importance ranks for each climate scenario, and comparing how each variable gains or loses importance in a warming climate.
-
-This is an optional split: the `clim` variable could have been left as a column in the original dataframe, in which case climate scenario itself would be used as a predictor variable for NPP. For all scenario-type variables, the user can ultimately choose whether or not it is included as a predictor variable or used as the basis of separation to generate a comparison.
-
-
-```{r split_data}
-# Create data frame with only climate scenario 0
-df_wy0 <- df_wy %>% 
-  filter(clim == 0) %>% 
-  select(-c(clim, wy))
-
-# Create data frame with only climate scenario 2
-df_wy2 <- df_wy %>% 
-  filter(clim == 2) %>% 
-  select(-c(clim, wy))
-```
-
-Now, we have two data tables representing the two climate scenarios.
-
-Along with this workflow, this repo also contains a Shiny App. The Shiny App can be used post-analysis to graph some of the relationships that are identified within this feature selection workflow. Here we'll save the newly aggregated datasets to be automatically exported into the Shiny App.
-
 ```{r}
-# For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
-
-# Create and export dataframes that change the response column name back to the variable itself to be used in the Shiny app.
-
-# df_export <- rename(.data = df_wy, !!response_var := response)
-# df_export_wy0 <- rename(.data = df_wy0, !!response_var := response)
-# df_export_wy2 <- rename(.data = df_wy2, !!response_var := response)
-
-# write.csv(df_export, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
-# write.csv(df_export_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
-# write.csv(df_export_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
+load(here("data", "prepared_data.RData"))
 ```
 
 
@@ -233,15 +68,7 @@ Next, we want to get a summary description of the data set. This is crucial for 
 Here, we display summary statistics for the base climate scenario data.
 
 ```{r describe_data}
-summarize_data <- function(df) {
-  df_name <- deparse(substitute(df))
-  describe(df) %>% 
-    select(vars, n, mean, sd, min, max, range) %>% 
-    mutate(class = lapply(df, class)) %>% 
-    mutate_if(is.numeric, round, 4) %>% 
-    DT::datatable(options = list(pageLength = 7),
-                  caption = paste0("Summary of ", df_name))
-}
+source(here("functions", "summarize_data.R"))
 
 summarize_data(df_wy0)
 summarize_data(df_wy2)
@@ -348,39 +175,6 @@ pref_order2 <- varImp(imp2$finalModel, scale = FALSE) %>%
   rownames()
 ```
 
-```{r create_correlation_functions}
-# Remove variables based on VIF and Correlation thresholds
-remove_vif <- function(predictors.df, vif.threshold = 5, preference.order = pref_order0) {
-  if (!(class(vif.threshold) %in% c("numeric"))) {
-    stop("VIF threshold must be numeric.")
-  }
-  if (vif.threshold < 1) {
-    stop("VIF threshold must be greater than or equal to 1.")
-  }
-  
-  variable.selection <- auto_vif(x = predictors.df,
-                                 vif.threshold = vif.threshold,
-                                 preference.order = preference.order) 
-  
-  return(variable.selection)
-}
-
-remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = pref_order0) {
-  if (!(class(cor.threshold) %in% c("numeric"))) {
-    stop("Correlation threshold must be numeric.")
-  }
-  if(cor.threshold < 0 | cor.threshold > 1) {
-    stop("Correlation threshold must be between 0 and 1.")
-  }
-  
-  variable.selection <- auto_cor(x = predictors.df,
-                                 cor.threshold = cor.threshold,
-                                 preference.order = preference.order) 
-  
-  return(variable.selection)
-}
-```
-
 Thresholds for VIF and correlation can be set below, with default values of 5 and 0.75, respectively. Increasing the thresholds will reduce the number of variables that get removed, but it will increase the likelihood that collinearity influences the results.
 
 ```{r set_thresholds}
@@ -389,6 +183,9 @@ cor.threshold = 0.75
 ```
 
 ```{r remove_multicollinearity, warning = FALSE}
+source(here("functions", "remove_vif.R"))
+source(here("functions", "remove_cor.R"))
+
 # Create list of selected variables
 wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = vif.threshold, pref_order0)$selected.variables
 wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = cor.threshold, pref_order0)$selected.variables
@@ -410,109 +207,14 @@ df_wy2_reduced <- df_wy2 %>%
 
 The next step is intended to elucidate the previous multicollinearity reduction process via figures showing which variables were selected and removed, and why. This information can be used to determine whether the auto-generated preference order based on preliminary importance performed satisfactorily, or whether the preference order should be set manually. If, for example, a variable of particular interest was removed, the `manual_preference_order` code chunk above can be used to create a preference order containing the desired variable.
 
-```{r summarize_removed_vars_function, class.source='fold-hide'}
-summarize_removed_vars <- function(clim, table = FALSE) {
-  
-  select_variables <- get(paste0("wy", clim, "_select_variables"))
-  imp <- get(paste0("imp", clim))
-  df <- get(paste0("df_wy", clim))
-  all_preds.df <- df %>% 
-    select(!response)
-  
-  
-  removed_importance <- imp$finalModel["importance"] %>% 
-    data.frame() %>% 
-    rownames_to_column("variable") %>%
-    rename("importance" = "importance..IncMSE") %>% 
-    select(!importance.IncNodePurity) %>% 
-    mutate("importance_rank" = rank(-importance)) %>% 
-    mutate(selected = case_when(variable %in% select_variables ~ "selected",
-                                !variable %in% select_variables ~ "removed")) %>% 
-    relocate("selected", .after = "variable")
-  
-  
-  # Calculating vif again - auto_vif() only returns values for selected variables
-  removed_vif <- vif(all_preds.df)
-  
-  # joining dfs to create summary table of removed and selected variables
-  removed_summary <- removed_importance %>% 
-    left_join(removed_vif, by = "variable") %>% 
-    filter(!(variable %in% factor_vars))
-  
-  if (table == TRUE) {
-    
-    removed_summary <- removed_summary %>% 
-      datatable()
-    
-  }
-  
-  return(removed_summary)
-  
-}
-```
 
 ```{r summarize_cor_function, class.source='fold-hide'}
-summarize_cor <- function(clim, selected_removed) {
-  
-  num_preds.df <-  get(paste0("df_wy", clim, "_num_preds"))
-  cor_matrix <- cor(num_preds.df)
-  select_variables <- get(paste0("wy", clim, "_select_variables"))
-
-  cor.df <- reshape2::melt(cor_matrix)
-  cor.df <- cor.df %>% 
-    filter(Var1 != Var2)
-  dups <- duplicated(sort(cor.df$value))
-  cor.df <- cor.df[!dups, ] %>% 
-    rename("correlation" = "value") %>% 
-    mutate(var1_selected = case_when(Var1 %in% select_variables ~ "selected",
-                            !Var1 %in% select_variables ~ "removed")) 
-  
-  if (selected_removed == "selected") {
-    cor.df <- cor.df %>% 
-      filter(var1_selected == "selected")
-  }
-  
-  if (selected_removed == "removed") {
-    cor.df <- cor.df %>% 
-          filter(var1_selected == "removed")
-  }
-  
-  cor.df <- cor.df[order(cor.df$Var1), ]
-  
-  cor.table <- cor.df %>%
-    mutate_if(is.numeric, round, 4) %>% 
-    datatable(options = list())
-  
-  return(cor.table)
-  
-}
+source(here("functions", "summarize_removed_vars.R"))
+source(here("functions", "summarize_cor.R"))
+source(here("functions", "plot_removed_imp.R"))
+source(here("functions", "plot_removed_vif.R"))
 ```
 
-```{r plot_removed_imp_function, class.source='fold-hide'}
-plot_removed_imp <- function(clim) {
-  
-  removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
-                             aes(x = importance, y = reorder(variable, importance), fill = selected)) +
-    geom_col() + labs(x = "Preliminary Importance", y = "Variable") +
-    theme_light()
-  
-  return(removed_imp_plot)
-  
-}
-```
-
-```{r plot_removed_vif_function, class.source='fold-hide'}
-plot_removed_vif <- function(clim) {
-  
-  removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
-                              aes(x = vif, y = reorder(variable, vif), fill = selected)) + 
-    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable") +
-    theme_light()
-  
-  return(removed_vif_plot)
-  
-}
-```
 
 The following functions output two tables and two plots of all variables indicating selection status and the criteria by which those selections were made. The first table shows preliminary importance and VIF, and the second shows correlation between each variable combination. Preliminary importance and VIF are also plotted visually in the two bar charts. 
 
@@ -584,27 +286,13 @@ The function below creates a vector of accuracy results of random forests using 
 ```{r tuning_function}
 df_wy0_reduced <- as.data.frame(df_wy0_reduced)
 df_wy2_reduced <- as.data.frame(df_wy2_reduced)
-
-tune_rf_model <- function(df) {
-  
-  tuning <- vector(length = (ncol(df)-1))
-  
-  x = df[,-1]
-  y = df[,1]
-  
-  for (i in 1:length(tuning)) {
-    rf_tuning <- randomForest(x, y, mtry = i, ntree = 50)
-    tuning[i] <- tail(rf_tuning$mse, 1)
-  }
-  
-  return(tuning)
-}
-
 ```
 
 Next, we run the function for both climate scenario data sets and visualize the results. Model error here is assessed using out-of-bag (OOB) observations in the data, which refers to observations that were not sampled during bootstrapping for the particular Random Forest being assessed. In other words OOB data were not used to train the model and can be used to test accuracy without the risk of bias incurred from model over-fitting. The best `mtry value` in the plots below will be represented by the lowest `OOB Error`.
 
 ```{r tune_rf_wy0, warning = FALSE}
+source(here("functions", "tune_rf_model.R"))
+
 set.seed(4326)
 
 mtry0 <- tune_rf_model(df_wy0_reduced)
@@ -751,29 +439,9 @@ Now, we can visualize the results of the Random Forest feature selection.
 The following table shows the relative importance of predictor variables between the two climate scenarios.
 
 ```{r}
-df_imp_table <- function(imp_wy_df1, imp_wy_df2) {
-  
-  df_imp <- imp_wy_df1 %>% 
-    full_join(imp_wy_df2, by = "Variable") %>% 
-    mutate(Diff = Rank.x-Rank.y) %>% 
-    select(-c(Overall.x, Overall.y)) %>% 
-    rename("Rank (0)" = Rank.x,
-           "Rank (2)" = Rank.y) %>% 
-    arrange(`Rank (0)`)
-  
-  df_imp %>%
-  kable(align = "r",
-        caption = "Difference in variable importance for the two climate scenarios") %>%
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  column_spec(column = 4,
-              color = ifelse(is.na(df_imp$Diff), "grey",
-                           ifelse(df_imp$Diff > 0, "green",
-                                  ifelse(df_imp$Diff == 0, "grey", "red"))))
-  
-}
+source(here("functions", "df_imp_table.R"))
 
 df_imp_table(imp_wy0, imp_wy2)
-
 ```
 
 We see that precipitation and rz_storage are the first and second most important predictors of NPP for both climate scenarios. The highest difference is evaporation - which is third most important for the base climate scenario and sixth for the +2 degree Celsius warming scenario. This indicates that the relationship between NPP and evaporation has changed given warming, which could be investigated further. This process can be repeated for all other observations found in the table.
@@ -781,17 +449,7 @@ We see that precipitation and rz_storage are the first and second most important
 This same information is plotted below. The variable importance plots also reveal relative magnitude of importance between variables. 
 
 ```{r plot_imp}
-plot_imp <- function(varimp_df) {
-  df_name <- deparse(substitute(varimp_df))
-  ggplot(data = varimp_df, aes(x = Overall, y = reorder(Variable, Overall))) +
-    geom_col() +
-    theme_light() +
-    theme(legend.position = "none",
-          axis.text.x = element_blank()) +
-    labs(title = paste0("Variable Importance for \n climate scenario ", str_sub(df_name, -length(df_name))),
-         x = "Importance",
-         y = "Variable")
-}
+source(here("functions", "plot_imp.R"))
 
 wy0_plot <- plot_imp(imp_wy0)
 wy2_plot <- plot_imp(imp_wy2)
@@ -812,9 +470,7 @@ The variable importance values derived from our Random Forest model allow us to 
 
 
 ```{r}
-get_important_predictors <- function(df_imp, rank) {
-  df_imp$Variable[df_imp$Rank == rank]
-}
+source(here("functions", "get_important_predictors.R"))
 
 # assigning first and second most important variables to objects
 pred1_clim0 <- get_important_predictors(imp_wy0, 1)
@@ -822,15 +478,7 @@ pred2_clim0 <- get_important_predictors(imp_wy0, 2)
 pred1_clim2 <- get_important_predictors(imp_wy2, 1)
 pred2_clim2 <- get_important_predictors(imp_wy2, 2)
 
-create_binned_df <- function(df_wy) {
-  df_pred_binned <- df_wy %>% 
-  select(all_of(pred1_clim0), all_of(pred2_clim0), response) %>%
-  mutate(pred1 = df_wy[[pred1_clim0]],
-         pred2 = df_wy[[pred2_clim0]]) %>% 
-  mutate(bin = as.numeric(ntile(pred2, 4)))
-  
-  return(df_pred_binned)
-}
+source(here("functions", "create_binned_df.R"))
 
 df0_pred_binned <- create_binned_df(df_wy0)
 df2_pred_binned <- create_binned_df(df_wy2)
@@ -845,28 +493,7 @@ ggplot(df0_pred_binned, aes(x = pred1, y = .data[["response"]])) +
                      "in 0 degree climate scenario")) +
   theme_minimal()
 
-create_binned_plot <- function(df_binned) {
-  df_name <- deparse(substitute(df_binned))
-  if (df_name == "df0_pred_binned") {
-    p1 = pred1_clim0
-    p2 = pred2_clim0
-    scen = "0"
-  }
-  if (df_name == "df2_pred_binned") {
-    p1 = pred1_clim2
-    p2 = pred2_clim2
-    scen = "2"
-  }
-  
-  ggplot(df_binned, aes(x = pred1, y = .data[["response"]])) +
-    geom_point() +
-    geom_smooth(method = "lm") +
-    facet_wrap("bin") +
-    labs(x = str_to_title(pred1_clim0), y = response_var,
-         title = paste(p1, "vs", response_var, "given different value classes of",
-                       p2, "\n in", scen, "degree climate scenario")) +
-    theme_minimal()
-}
+source(here("functions", "create_binned_df.R"))
 
 create_binned_plot(df0_pred_binned)
 create_binned_plot(df2_pred_binned)
