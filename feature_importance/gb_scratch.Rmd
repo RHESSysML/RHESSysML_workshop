@@ -7,6 +7,8 @@ output:
     theme: cerulean
 ---
 
+**Currently just taking sections of code from the feature selection .Rmd and trying the same stuff with Gradient Boosting to try and identify differences**
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -32,6 +34,96 @@ options(scipen = 5)
 
 # Data Preparation
 
+## Load Data
+
+```{r load_data, message=FALSE}
+df_wy <- read_csv(here("shiny", "aggregated_datasets", "df_wy.csv")) 
+
+## Create data frame with only climate scenario 0
+df_wy0 <- df_wy %>% 
+  filter(clim==0) %>% 
+  select(-clim)
+
+## Create data frame with only climate scenario 2
+df_wy2 <- df_wy %>% 
+  filter(clim==2) %>% 
+  select(-clim)
+```
+
+
+# Manual XGBoost Stuff
+
+### Specify hyperparameters 
+
+Detailed description of parameters: 
+https://xgboost.readthedocs.io/en/stable/parameter.html
+
+Parameter tuning guidelines: 
+https://xgboost.readthedocs.io/en/latest/tutorials/param_tuning.html 
+**This document begins with the sentence: "Parameter tuning is a dark art in machine learning."** 
+In Python: https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/ 
+From Kaggle: https://www.kaggle.com/prashant111/a-guide-on-xgboost-hyperparameters-tuning 
+
+```{r}
+xgb_params <- list(
+  booster = "gbtree",
+  eta = 0.03,
+  max_depth = 10,
+  gamma = 2,
+  subsample = 0.8,
+  colsample_bytree = 1,
+  objective = "reg:squarederror",
+  eval_metric = "rmse"
+)
+```
+
+```{r}
+xgb_model <- xgb.train(
+#  params = xgb_params,
+  data = xgb_matrix_train_x,
+  nrounds = 5000,
+  verbose = 1
+)
+xgb_model
+```
+
+```{r}
+xgb_preds <- as.data.frame(predict(xgb_model, xgb_matrix_test_x, reshape = TRUE))
+xgb_pred_df <- xgb_preds %>% 
+  mutate(RHESSYS_npp = npp_test)
+
+```
+
+## XGBoost Package
+```{r}
+xgb_imp <- xgb.importance(model = xgb_model)
+
+xgb.ggplot.importance(xgb_imp, xlab = "Relative importance")
+
+```
+
+```{r}
+train_data <- train_set %>% 
+  mutate(stratumID = as.numeric(as.character(stratumID)),
+         scen = as.numeric(as.character(scen)),
+         topo = as.numeric(topo),
+         clim = as.numeric(clim)) %>%
+  select(-npp) %>% 
+  as.matrix()
+
+xgb.plot.shap.summary(data = train_data, model = xgb_model)
+```
+
+```{r}
+xgb.plot.multi.trees(model = xgb_model, features_keep = 10)
+
+
+```
+
+
+
+# Caret Package
+
 adaboost is the earliest form of gradient boosting, loss function is hard-coded so less flexible:
 https://www.analyticsvidhya.com/blog/2020/10/adaboost-and-gradient-boost-comparitive-study-between-2-popular-ensemble-model-techniques/
 https://datascience.stackexchange.com/questions/39193/adaboost-vs-gradient-boosting
@@ -43,8 +135,6 @@ Testing different implementations of `gbm` and `xgboost` methods through `caret`
 All gradient boosting methods require one-hot encoding for factor variables:
 
 ```{r}
-df_wy <- read_csv(here("shiny", "aggregated_datasets", "df_wy.csv"))
-
 # Training vs response
 y = df_wy$response
 x = df_wy[-1]
@@ -56,6 +146,7 @@ response_var <- "npp"
 x[,factor_vars] <- lapply(x[,factor_vars], factor)
 
 xhot = x %>% data.table::data.table() %>% mltools::one_hot(cols = factor_vars)
+xnum = x %>% select(!factor_vars)
 ```
 
 https://machinelearningmastery.com/gentle-introduction-gradient-boosting-algorithm-machine-learning/
@@ -113,6 +204,20 @@ gbm_model_cv <- caret::train(
 )
 ```
 
+-------------------------------------
+late cv, gbm
+```{r}
+gbm_model <- caret::train(
+  x = xhot,
+  y = y,
+  trControl = trainControl(method = "none", seeds = 4326),
+  metric = 'RMSE',
+  method = "gbm",
+  verbose = FALSE
+)
+```
+
+
 ----------------------------------------------
 full cv, xgboost
 ```{r}
@@ -136,10 +241,28 @@ plot(xgb_model_cv)
 # from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
 ```
 
+--------------------------------
+late cv, xgboost
+
+```{r}
+xgb_model <- caret::train(
+  x = xhot,
+  y = y,
+#  trControl = trainControl(method = "none", seeds = 4326),
+  metric = 'RMSE',
+  method = "xgbTree",
+  verbose = FALSE
+)
+
+# why does `xgboost` take so much longer than `gbm` in the non-cv model?
+# maybe this actually doesn't work, just use caret's built-in cv
+```
 
 Comparison of prediction results
 
 ```{r}
+# predict(gbm_model, xhot)
+# predict(xgb_model, xhot)
 predict(gbm_model_cv, xhot)
 predict(xgb_model_cv, xhot)
 ```
@@ -156,44 +279,49 @@ xgb_model_cv$results$Rsquared
 We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
 
 ```{r}
-params0 = xgb_model_cv$bestTune
-params2 = gbm_model_cv$bestTune
+params0 = gb_model0_caret$bestTune
+params2 = gb_model2_ada$bestTune
 ```
 
+In the interest of efficiency, we can look at how long it took each model to train:
+
+```{r}
+# Random Forest models:
+
+# Gradient Boosting Models:
+gb_model0_caret$times
+gb_model2_ada$times
+```
 
 Find variable importance:
 
 ```{r}
 # might try with `gbm` instead of `xgb` to be compatible with varImp()?
 
-xgb_imp = varImp(xgb_model_cv, scale = FALSE)
-list_impx = xgb_impx$importance
-list_impx = list_impx %>% mutate(Variable = row.names(list_impx)) %>% 
-  filter(list_impx$Overall != 0)
 
-gbm_imp = varImp(gbm_model_cv, scale = FALSE)
-list_imp = gbm_imp$importance
-list_imp = list_imp %>% mutate(Variable = row.names(list_imp)) %>% 
-  filter(list_imp$Overall != 0)
+c0_imp = varImp(gb_model0_caret, scale = FALSE)
+list_imp0 = c0_imp$importance
+list_imp0 = list_imp0 %>% mutate(Variable = row.names(list_imp0)) %>% 
+  filter(list_imp0$Overall != 0)
 
+c2_imp = varImp(gb_model0_caret, scale = FALSE)
+list_imp2 = c2_imp$importance
+list_imp2 = list_imp2 %>% mutate(Variable = row.names(list_imp2)) %>% 
+  filter(list_imp2$Overall != 0)
 ```
 
 
 ```{r}
-# default plotting function
-plot(xgb_imp, top = 15)
-plot(gbm_imp, top = 15)
-
-
 # using plotting function from rf workflow
-xgb_plot <- plot_imp(list_impx)
-gbm_plot <- plot_imp(list_imp)
+wy0_plot <- plot_imp(list_imp0)
+wy2_plot <- plot_imp(list_imp2)
 
 wy0_plot + wy2_plot 
-
 ```
 
-```{r}
+Can see that we are getting different top 3 between `xgboost` and `caret`, even within gradient boosting. Need to check stuff like defaults (gamma value? dealing with categoricals is clearly different? Also did 10-fold with caret but not with xgb.)
 
+```{r}
+plot(c_imp, top = 15)
 ```
 

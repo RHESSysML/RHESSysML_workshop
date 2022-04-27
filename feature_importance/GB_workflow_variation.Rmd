@@ -306,7 +306,7 @@ Below, there are two methods for setting preference order: (1) Manually creating
 #pref_order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
-2. Run this chunk to allow preliminary random forest to automatically determine preference order.
+2. Run this chunk to allow preliminary random forest to automatically determine preference order. Note: even though we will be using Gradient Boosting her for the actual analysis, prelimenary impostance is set using a Random Forest because it is faster.
 
 **looking into child documents to clean up some of this stuff, esp in GB workflow but could be nice in RF one too**
 
@@ -563,3 +563,281 @@ plot_removed_imp(clim = 2)
 plot_removed_vif(clim = 2)
 ```
 
+
+# Feature Importance with Gradient Boosting
+
+## Parameter Tuning
+
+There is a bit more complexity that goes into tuning a Gradient Boosting model than a Random Forest. The `expand.grid()` function will allow us to test multiple values of each parameter to optimize model performance. Some of the standard hyperparameters that we will tune here are:
+
+ - `nrounds` (# Boosting Iterations)
+ - `max_depth` (Max Tree Depth)
+ - `eta` (Shrinkage)
+ - `gamma` (Minimum Loss Reduction)
+ - `colsample_bytree` (Subsample Ratio of Columns)
+ - `min_child_weight` (Minimum Sum of Instance Weight)
+ - `subsample` (Subsample Percentage)
+ 
+Out of all these parameters, all except `nrounds` are used to prevent overfitting, which is a more common problem in boosting models than RFs. The inherent randomness of RFs prevents overfitting relatively effectively, but more care is required with GB. For example, the `colsample_bytree` parameter mimics the functionality of a RF by randomly sampling the specified proportions of columns to build a boosted tree.
+
+Additionally, we will use `trainControl()` to implement 10-fold cross-validation to further avoid overfitting.
+
+```{r}
+
+fitControl <- caret::trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final'
+)
+
+tune_grid <- expand.grid(
+  nrounds = seq(from = 100, to = 800, by = 50),
+  eta = c(0.01, 0.02, 0.05, 0.1, 0.3),
+  max_depth = c(2, 3, 4, 5, 6), 
+  gamma = c(0, 10, 50),
+  colsample_bytree = c(.5, .7, .8, 1),
+  min_child_weight = 1,
+  subsample = c(.5, .7, .8, 1))
+```
+
+-------------------------------------------
+full cv, gbm
+
+
+```{r}
+set.seed(4326)
+
+gbm_model_cv <- caret::train(
+  x = xhot,
+  y = y,
+  trControl = fitControl,
+  tuneGrid = tune_grid,
+  metric = 'RMSE',
+  method = "gbm",
+  verbose = FALSE
+)
+```
+
+----------------------------------------------
+full cv, xgboost
+```{r}
+xgb_model_cv = train(x=xhot,
+                      y=y,
+                      method = "xgbTree",
+                      trControl = fitControl,
+                      tuneGrid = tune_grid,
+                      verbosity = 0)
+
+plot(xgb_model_cv)
+
+# helper function for the plots
+# tuneplot <- function(x, probs = .90) {
+#   ggplot(x) +
+#     coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+#     theme_bw()
+# }
+# 
+# tuneplot(xgb_tune)
+# from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
+```
+
+
+Comparison of prediction results
+
+```{r}
+predict(gbm_model_cv, xhot)
+predict(xgb_model_cv, xhot)
+```
+
+```{r}
+gbm_model_cv$results$RMSE
+gbm_model_cv$results$Rsquared
+
+xgb_model_cv$results$RMSE
+xgb_model_cv$results$Rsquared
+```
+
+
+We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
+
+```{r}
+params0 = xgb_model_cv$bestTune
+params2 = gbm_model_cv$bestTune
+```
+
+
+Find variable importance:
+
+```{r}
+# might try with `gbm` instead of `xgb` to be compatible with varImp()?
+
+xgb_imp = varImp(xgb_model_cv, scale = FALSE)
+list_impx = xgb_impx$importance
+list_impx = list_impx %>% mutate(Variable = row.names(list_impx)) %>% 
+  filter(list_impx$Overall != 0)
+
+gbm_imp = varImp(gbm_model_cv, scale = FALSE)
+list_imp = gbm_imp$importance
+list_imp = list_imp %>% mutate(Variable = row.names(list_imp)) %>% 
+  filter(list_imp$Overall != 0)
+
+```
+
+
+```{r}
+# default plotting function
+plot(xgb_imp, top = 15)
+plot(gbm_imp, top = 15)
+
+
+# using plotting function from rf workflow
+xgb_plot <- plot_imp(list_impx)
+gbm_plot <- plot_imp(list_imp)
+
+wy0_plot + wy2_plot 
+
+```
+
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Despite some of their shortcomings, these importance measures can provide insights are further explored at the end of this document.
+
+As the primary measure of importance we instead use partial permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps...
+
+1. Assess prediction accuracy (mean squared error) of the model on the out-of-bag data.
+
+2. Permute the values of a given variable.
+
+3. Feed the dataset with the permuted values into the Random Forest and reassess model accuracy.
+
+4. Importance of the permuted variable is deemed to be the mean loss in accuracy when its values were permuted.
+
+```{r variable_importance}
+imp_wy0 <- varImp(rf_wy0$finalModel, scale = FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  mutate(Rank = rank(-Overall))
+
+imp_wy2 <- varImp(rf_wy2$finalModel, scale = FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  mutate(Rank = rank(-Overall))
+```
+
+Save the above importance dataframes to be used in the Shiny App.
+
+```{r}
+# This will export the importance rank datasets as csv files to be used in the shiny app. However, once again we will leave this commented out so that it doesn't export new csv files every time the workflow runs.
+
+# write.csv(imp_wy0, file = here("shiny", "aggregated_datasets", "imp_wy0.csv"), row.names = FALSE)
+# write.csv(imp_wy2, file = here("shiny", "aggregated_datasets", "imp_wy2.csv"), row.names = FALSE)
+```
+
+
+# Model Evaluation
+
+The following section provides visualizations and statistics to evaluate the random forest performance.
+
+First, simply calling the random forest shows a summary of the results, including percent variance explained.
+
+```{r}
+rf_wy0_fit <- round(tail(rf_wy0$finalModel$rsq, 1)*100, 2)
+
+rf_wy0$finalModel
+```
+
+The model for the base climate scenario explained `r rf_wy0_fit`% of variance in NPP.
+
+```{r}
+rf_wy2_fit <- round(tail(rf_wy2$finalModel$rsq, 1)*100, 2)
+
+rf_wy2$finalModel
+```
+
+The model for the +2 degree Celsius climate scenario explained `r rf_wy2_fit`% of variance in NPP.
+
+Next, we can implement a permutation test cross-validation for the random forest models. The statistics are based on prediction error on the withheld data.
+
+```{r}
+df_wy0_reduced_allpredictors <- df_wy0_reduced %>% 
+  select(!response)
+
+rf_wy0_cv <- rf.crossValidation(x = rf_wy0$finalModel, xdata = df_wy0_reduced_allpredictors, p = 0.1, n = 10)
+
+rf_wy0_cv_fit <- round(tail(rf_wy0_cv$model.varExp, 1), 2)
+
+rf_wy0_cv
+```
+
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains `r rf_wy0_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
+
+```{r}
+df_wy2_reduced_allpredictors <- df_wy2_reduced %>% 
+  select(!response)
+
+rf_wy2_cv <- rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
+
+rf_wy2_cv_fit <- round(tail(rf_wy2_cv$model.varExp, 1), 2)
+
+rf_wy2_cv
+```
+
+The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains `r rf_wy2_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
+
+# Visualize Results
+
+Now, we can visualize the results of the Random Forest feature selection.
+
+The following table shows the relative importance of predictor variables between the two climate scenarios.
+
+```{r}
+df_imp_table <- function(imp_wy_df1, imp_wy_df2) {
+  
+  df_imp <- imp_wy_df1 %>% 
+    full_join(imp_wy_df2, by = "Variable") %>% 
+    mutate(Diff = Rank.x-Rank.y) %>% 
+    select(-c(Overall.x, Overall.y)) %>% 
+    rename("Rank (0)" = Rank.x,
+           "Rank (2)" = Rank.y) %>% 
+    arrange(`Rank (0)`)
+  
+  df_imp %>%
+  kable(align = "r",
+        caption = "Difference in variable importance for the two climate scenarios") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  column_spec(column = 4,
+              color = ifelse(is.na(df_imp$Diff), "grey",
+                           ifelse(df_imp$Diff > 0, "green",
+                                  ifelse(df_imp$Diff == 0, "grey", "red"))))
+  
+}
+
+df_imp_table(imp_wy0, imp_wy2)
+
+```
+
+We see that precipitation and rz_storage are the first and second most important predictors of NPP for both climate scenarios. The highest difference is evaporation - which is third most important for the base climate scenario and sixth for the +2 degree Celsius warming scenario. This indicates that the relationship between NPP and evaporation has changed given warming, which could be investigated further. This process can be repeated for all other observations found in the table.
+
+This same information is plotted below. The variable importance plots also reveal relative magnitude of importance between variables. 
+
+```{r plot_imp}
+plot_imp <- function(varimp_df) {
+  df_name <- deparse(substitute(varimp_df))
+  ggplot(data = varimp_df, aes(x = Overall, y = reorder(Variable, Overall))) +
+    geom_col() +
+    theme_light() +
+    theme(legend.position = "none",
+          axis.text.x = element_blank()) +
+    labs(title = paste0("Variable Importance for \n climate scenario ", str_sub(df_name, -length(df_name))),
+         x = "Importance",
+         y = "Variable")
+}
+
+wy0_plot <- plot_imp(imp_wy0)
+wy2_plot <- plot_imp(imp_wy2)
+
+wy0_plot + wy2_plot 
+```
+
+Let's save the above importance plots to be used in the Shiny App.
+
+```{r, include = FALSE}
+importance_plots <- wy0_plot + wy2_plot 
+ggsave(importance_plots, filename = "importance_plots.png", path = here("shiny", "www"))
+```
