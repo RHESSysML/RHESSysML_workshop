@@ -1,0 +1,95 @@
+---
+title: "Partial vs conditional importance"
+author: "Peter Menzies"
+date: '2022-04-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(caret)
+library(patchwork)
+```
+
+## Purpose
+
+Here we demonstrate the use of the conditional permutation importance (CPI) implementation found in the `permimp` package developed by Strobl and Debeer (2020). CPI has been shown to mitigate some of the bias incurred by highly collinear predictor variables when using partial permutation importance (Strobl et al. 2008). While we address multicollinearity by removing problematic variables, we wanted to experiment with using `permimp` as it appears to be one of the newer innovations in determining feature importance from random forests in R. However, it yielded odd results, and this notebook is intended to show why we chose not to use the package in our workflow. 
+
+## Loading outputs from workflow
+
+```{r}
+# Random forests grown using caret::train()
+load(here("testing", "saved_output", "rf_wy0_model.RData"))
+load(here("testing", "saved_output", "rf_wy2_model.RData"))
+
+# Importance output from permimp::permimp()
+load(here("testing", "saved_output", "conditional_output_wy0.RData"))
+load(here("testing", "saved_output", "conditional_output_wy2.RData"))
+```
+
+## Partial vs conditonal permutation importance
+
+Partial permutation importance---which is the primary importance measure used in our workflow---looks at the increase in model error incurred when the values of a particular variable are permuted. The idea is that the more important a variable is as a predictor of the response variable, the more permuting the values of that variable will increase model error.
+
+Conditional permutation importance also permutes variable values in this way, but attempts to determine importance _conditional_ on the other variables in the model. Calculating this value is less intuitive to explain and is more mathematically involved---more information about conditional permutation importance can be found in the following paper: [Debeer and Strobl 2020](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2).
+
+### Climate scenario 0
+
+```{r}
+# Partial permutation importance using climate scenario 0 data
+partial_imp_wy0 <- varImp(rf_wy0_model, scale = FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  rename(Importance = Overall) %>% 
+  mutate(Rank = rank(-Importance)) %>% 
+  ggplot(aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+
+# Conditional permutation importance using climate scenario 0 data
+conditional_imp_wy0 <- as.data.frame(conditional_output_wy0$values) %>% 
+  rownames_to_column("Variable") %>% 
+  rename(Importance = "conditional_output_wy0$values") %>% 
+  mutate(Rank = rank(-Importance)) %>% 
+  ggplot(aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+  
+
+partial_imp_wy0 + conditional_imp_wy0
+```
+
+### Climate scenario 2
+
+```{r}
+# Partial permutation importance using climate scenario 0 data
+partial_imp_wy2 <- varImp(rf_wy2_model, scale = FALSE) %>% 
+  rownames_to_column("Variable") %>% 
+  rename(Importance = Overall) %>% 
+  mutate(Rank = rank(-Importance)) %>% 
+  ggplot(aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+
+# Conditional permutation importance using climate scenario 2 data
+conditional_imp_wy2 <- as.data.frame(conditional_output_wy2$values) %>% 
+  rownames_to_column("Variable") %>% 
+  rename(Importance = "conditional_output_wy2$values") %>% 
+  mutate(Rank = rank(-Importance)) %>% 
+  ggplot(aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_col()
+  
+
+partial_imp_wy2 + conditional_imp_wy2
+```
+
+
+
+
+
+
+
+
+
+
+
+
