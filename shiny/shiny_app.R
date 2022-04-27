@@ -125,6 +125,13 @@ quantile_slider <- sliderInput("quantile_sel",
                                max = 9,
                                value = 1)
 
+# Attempting to create a threshold slider. Work in progress.
+# threshold_slider <- sliderInput("threshold_sel",
+#                                 label = tags$h4("Where would you like to split the facet variable?"),
+#                                 min = min(input$facet_variable),
+#                                 max = max(input$facet_variable),
+#                                 value = min(input$facet_variable)) 
+
 ########## Create UI
 ui <- fluidPage(
   
