@@ -275,7 +275,7 @@ Highly correlated predictor variables are not as much a concern in machine learn
 
 ## Method
 
-Below, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. This is implemented using the `auto_vif()` and `auto_cor()` functions from the `spatialRF` package. Both functions allow the user to define an order of preference for the selection of variables, which will be discussed below. If no preference order is decided, the `auto_vif()` function orders the variables from minimum to maximum VIF, and the `auto_cor()` function orders variables by their column order.
+Below, we use Variance Inflation Factors (VIF) and Pearson Correlation Coefficients to remove variables with high multicollinearity. This is done using `auto_vif()` and `auto_cor()` from the `spatialRF` package---these two functions are used in conjunction to best minimize multicollinearity. Both functions allow the user to define an order of preference for the selection of variables, which will be discussed below. If no preference order is decided, the `auto_vif()` function orders the variables from minimum to maximum VIF, and the `auto_cor()` function orders variables by their column order.
 
 The `auto_vif()` function works by initially starting with the variable with highest preference. Then, it iterates through the preference order list, computing the VIF for each new variable added. If the VIF of the new variable is lower than the threshold it is kept, if not the variable is removed. This process is continued until all VIF values are below the user-input threshold.
 
