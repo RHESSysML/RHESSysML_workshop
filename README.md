@@ -17,8 +17,8 @@
       
 <p align="center">
   <a href="#about">About</a> •
-  <a href="#how to use">How to Use</a> •
-  <a href="#choosing a model">Choosing a Model</a> •
+  <a href="#how-to-use">How to Use</a> •
+  <a href="#choosing-a-model">Choosing a Model</a> •
   <a href="#wiki">Wiki</a> 
 </p>
 
@@ -49,7 +49,7 @@ Fork and clone this repository
 | Faster Run Time            |         ✔️         |        ❌        |
 | Less Tuning                |         ✔️         |        ❌        |
 | Accurate predictive power  |         ✔️         |        ✔️        |
-| Better maximum accuracy    |         ✔️         |        ✔️        |
+| Better maximum accuracy    |         ❌️         |        ✔️        |
 
 
 ## Wiki
