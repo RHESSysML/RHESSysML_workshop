@@ -65,7 +65,7 @@ This repository contains the following directories:
         
 4. In `notebook_templates`, run "rf_variable_importance.Rmd" or "gb_variable_importance.Rmd". For most use cases, **"rf_variable_importance.Rmd" is preferred**.
         
-5. In `shiny`, open "server.R" or "ui.R" using RStudio and hit "Run App". The app can also be run via the command line using `R -e “shiny::runApp(‘/shiny’)”`.
+5. In `shiny`, open "shiny_app.R" using RStudio and hit "Run App". The app can also be run via the command line using `R -e “shiny::runApp(‘/shiny’)”`.
         
 
 ## Choosing a Model
