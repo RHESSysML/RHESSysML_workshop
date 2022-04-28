@@ -17,8 +17,8 @@
       
 <p align="center">
   <a href="#about">About</a> •
-  <a href="#howtouse">How to Use</a> •
-  <a href="#chooseamodel">Choosing a Model</a> •
+  <a href="#how to use">How to Use</a> •
+  <a href="#choosing a model">Choosing a Model</a> •
   <a href="#wiki">Wiki</a> 
 </p>
 
