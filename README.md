@@ -1,7 +1,7 @@
 
-# RHESSysML
+<h1 align="center"> RHESSysML </h1>
 
-#### A comprehensive workflow to determine and visualize variable importance in RHESSys model output.
+<h4 align="center"> A comprehensive workflow to determine and visualize variable importance in RHESSys model output. </h4>
 
 <p align="center">
     <a href="https://github.com/RHESSysML/RHESSysML/commits/main">
