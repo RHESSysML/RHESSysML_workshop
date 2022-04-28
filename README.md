@@ -55,7 +55,7 @@ This repository contains the following directories:
 
 ## How to Use
 
-1. Fork and clone this repository     
+1. Fork and clone this repository.     
         
 2. Place your RHESSys data in the `data` folder.
         
