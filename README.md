@@ -4,9 +4,6 @@
 <h4 align="center"> A comprehensive workflow to determine and visualize variable importance in RHESSys model output. </h4>
 
 <p align="center">
-    <a href="https://github.com/RHESSysML/RHESSysML/tree/main/notebooks">
-    <img src=src="https://img.shields.io/github/workflow/status/RHESSysML/RHESSysML/notebooks"
-         alt="GitHub Workflow Status">
     <a href="https://github.com/RHESSysML/RHESSysML/commits/main">
     <img src="https://img.shields.io/github/last-commit/RHESSysML/RHESSysML.svg?style=flat-square&logo=github&logoColor=white"
          alt="GitHub last commit">
