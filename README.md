@@ -13,6 +13,8 @@
     <a href="https://github.com/RHESSysML/RHESSysML/pulls">
     <img src="https://img.shields.io/github/issues-pr-raw/RHESSysML/RHESSysML.svg?style=flat-square&logo=github&logoColor=white"
          alt="GitHub pull requests">
+    <img src="https://img.shields.io/github/repo-size/RHESSysML/RHESSysML?style=flat-square"
+         alt="GitHub repo size">
 </p>
       
 <p align="center">
