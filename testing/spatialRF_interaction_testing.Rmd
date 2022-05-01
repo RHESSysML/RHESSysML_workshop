@@ -1,0 +1,149 @@
+---
+title: "SpatialRF Interaction Testing"
+author: "RHESSysML Capstone Group"
+date: "2/5/2022"
+output: 
+  rmarkdown::html_document:
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen=999)
+
+# Standard packages
+library(tidyverse)
+library(here)
+
+# Machine Learning packages
+library(caret)
+library(spatialRF)
+library(randomForest)
+```
+
+## Purpose
+
+The purpose of this document is to test the capabilities of the `SpatialRF` package.
+
+## Loading outputs from workflow
+
+We will use the `df_wy0` dataset for the purpose of this example.
+
+```{r load_data, message=FALSE}
+df_wy0 <- readRDS(here("shiny", "aggregated_datasets", "df_wy0.RDS")) %>% 
+  rename(response = 1)
+```
+
+## Remove Multicollinearity
+
+In order to replicate the workflow's results, we will remove multicollinearity.
+
+```{r remove_multicollinearity}
+# Save data frames of predictor variables for first climate scenario
+df_wy0_num_preds <- df_wy0 %>% 
+  select(!response & where(is.numeric))
+
+df_wy0_fpreds <- df_wy0 %>% 
+  select(!response & where(is.factor)) %>% 
+  colnames()
+
+# Find preliminary importance using random forest
+imp0 <- train(x = df_wy0 %>% select(!response),
+              y = df_wy0$response,
+              method = 'rf',
+              importance = TRUE,
+              replace = TRUE,
+              trControl = trainControl(method = "none", seed = 4326))
+
+# Set preference order based on variable importance
+pref_order0 <- varImp(imp0$finalModel, scale = FALSE) %>% 
+  arrange(-Overall) %>% 
+  rownames()
+
+# Set thresholds
+vif.threshold = 5
+cor.threshold = 0.75
+
+# Remove multicollinear variables using these functions
+source(here("R", "remove_vif.R"))
+source(here("R", "remove_cor.R"))
+
+# Create list of selected variables
+wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = vif.threshold, pref_order0)$selected.variables
+wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = cor.threshold, pref_order0)$selected.variables
+wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
+
+# Remove numeric variables with multicollinearity
+df_wy0_reduced <- df_wy0 %>% 
+  select(c(response, all_of(df_wy0_fpreds), all_of(wy0_select_variables)))
+```
+
+## Hyper-Parameter Tuning
+
+In order to replicate the workflow's results, we will tune `mtry`.
+
+```{r tune_mtry}
+source(here("R", "tune_rf_model.R"))
+
+set.seed(4326)
+
+df_wy0_reduced <- as.data.frame(df_wy0_reduced)
+
+mtry0 <- tune_rf_model(df_wy0_reduced)
+bestmtry0 <- match(min(mtry0), mtry0)
+ggplot(data = as.data.frame(mtry0), aes(x = 1:length(mtry0), y = mtry0)) +
+  geom_vline(xintercept = bestmtry0, linetype = "dashed") +
+  geom_point() +
+  geom_line() +
+  theme_light() +
+  labs(x = "mtry value",
+       y = "OOB Error",
+       title = paste0("The best mtry value for ", deparse(substitute(df_wy0_reduced)), " is ", bestmtry0))
+```
+
+## Random Forest Model
+
+Now, we generate 5 random forest models using the same parameters as used in the workflow. The only difference between the models are the seed.
+
+```{r run_models}
+rf1 <- train(x = df_wy0_reduced %>% select(!response), y = df_wy0_reduced$response,
+             method = 'rf', .mtry = bestmtry0, ntree = 500, importance = TRUE,
+             replace = TRUE, trControl = trainControl(method = "none", seed = 4326))
+```
+
+## Variable Importance
+
+Now, we get variable importance using the same process as the workflow. 
+
+```{r get_importance}
+df_imp1 <- varImp(rf1$finalModel, scale = FALSE) %>% 
+  rownames_to_column("Variable") %>% mutate(Rank = rank(-Overall))
+```
+
+Plotting variable importance below reveals that results can change slightly for different random seeds. However, the results are largely the same regardless of seed.
+
+```{r plot_importance}
+source(here("R", "plot_imp.R"))
+
+plot_imp(df_imp1)
+```
+
+## Interactions
+
+```{r feature_engineer}
+xy = tibble(x = df_wy0_reduced$elev, y = df_wy0_reduced$aspect)
+
+interactions <- spatialRF::the_feature_engineer(
+  data = df_wy0_reduced,
+  dependent.variable.name = "response",
+  predictor.variable.names = colnames(df_wy0_reduced)[-1],
+  xy = xy,
+  importance.threshold = 0.50, #uses 50% best predictors
+  cor.threshold = 0.60, #max corr between interactions and predictors
+  seed = 4326,
+  repetitions = 100,
+  verbose = TRUE
+  )
+```
+
