@@ -12,7 +12,11 @@ output:
 
 # Introduction to Gradient Boosting
 
-This workflow is meant as a compliment to the Random Forest workflow, found [here](). While Random Forest is a "quick and easy" machine learning technique that has bee used to determine variable importance for ecohydrological models like RHESSys, it is far from the only method that can be used for this purpose. While the scope of this project does not allow a full exploration of all the possibilities of 
+This workflow is meant as a compliment to the random forest workflow, which is available in the `notebooks` folder. While random forest is a "quick and easy" machine learning technique that has bee used to determine variable importance for ecohydrological models like RHESSys before, it is far from the only method that can be used for this purpose. While the scope of this project does not allow a full exploration of all the possibilities of machine learning applications to RHESSys output, gradient boosting provides a good comparison to random forest because of a few important conceptual similarities and differences. 
+
+Firstly, both random forest and gradient boosting are tree-based machine learning models, which means the mechanisms by which the models make decisions are similar, at the most basic level - this allows for a direct comparison of model performance that is easy to understand from a human perspective. But at the same time, gradient boosting has a number of different hyperparameters that allow for greater user control over the model than can be achieved using random forest. In a predictive model, this is generally favorable because it leads to greater predictive power; however, gradient boosting is less commonly used to identify variable importance, which is the purpose of these workflows.
+
+As you will see, the extra time and computational demands of creating a gradient boosting model may not be an efficient tradeoff compared to a random forest model which may be nearly as accurate. However, it may still prove useful as an external validation of importance measures generated using random forest, or as an avenue to begin exploring further applications of machine learning to RHESSys data.
 
 # Setup
 
@@ -43,200 +47,31 @@ library(fastshap)
 ```
 
 
-# Data Preparation (will end up in separate .Rmd anyways)
+# Data Description
+
+Note that this workflow will use data that is aggregated by water year but **not** separated by climate scenario - to find the workflow that uses gradient boosting on climate-separated data, find the appropriate document in the `notebooks` folder.
 
 ## Load Data
 
-```{r load_data, message = FALSE}
-df <- read_csv(here("data", "sageres.csv")) 
-```
-
-## Clean and Aggregate Data
-
-First, RHESSys output will need to be aggregated and cleaned based on specific research question. Possible changes include:
-
-1.  Changing the temporal resolution (i.e. Daily to Yearly measurements).
-
-2.  Converting variable units (i.e. Radians to Degrees).
-
-3.  Converting variable class (i.e. numeric/character to factor).
-
-4.  Creating derived variables (i.e. Peak SWE).
-
-This workflow assumes that the data are aggregated by water year. The code chunk below identifies the variables in our data set that will be converted to factors, variables that will be used to aggregate by water year, and the desired response variable. Change the inputs below to apply to your dataset in whatever way necessary (you might want to include variables that  differentiate the conditions used for a single RHESSys simulation -  examples might be treatment type, location, climate model scenario). 
-
-The `group_cols` object selects the columns that the user wants the raw dataset to be aggregated by. 
-
-The `factor_vars` object are the predictor variables that will be converted to factors, which allows the random forest workflow to function. Any predictor variables that should be factors instead of numeric or character should be converted. (Example: stratumID is numeric, but because there are 6 different strata, it makes more sense for them to be factors.)
-
-The `response_var` object is the response variable that the user wants to predict. There should only be one response variable.
-
-```{r user_inputs}
-group_cols <- c("wy", "stratumID", "clim", "scen", "topo")
-factor_vars <- c("wy", "stratumID", "clim", "scen", "topo")
-response_var <- "npp"
-```
-
-```{r input_tests}
-# Check class types
-if (class(group_cols) != "character") {
-  stop("The group columns specified above should be written as characters.")
-}
-if (class(factor_vars) != "character") {
-  stop("The factor columns specified above should be written as characters.")
-}
-if (class(response_var) != "character") {
-  stop("The response variable column specified above should be written as a character.")
-}
-
-# Check for factors with many categories
-for (column in factor_vars) {
-  num_categories = n_distinct(df[,column])
-  if (num_categories > 50) {
-    warning(paste(column, "has", num_categories, "categories, should this column be numeric?"))
-  }
-}
-```
-
-Since temporal aggregation of the data set is critical to the results, we first create a function that allows us to dynamically select whether monthly or seasonal average temperatures are included as predictor variables. Setting `resolution = 'season'` does seasonal average temperatures, and `resolution = 'month'` does monthly average temperatures. By default, this function is set up to do seasonal average temperatures, and the seasons are:
-
-Winter = Dec, Jan, Feb, March
-Spring = April, May
-Summer = June, July, Aug, Sep
-Fall = Oct, Nov
-
-It is possible to reassign different months to different seasons within the function as well. 
-
-```{r aggregate_temp_function}
-aggregate_temp <- function(df, 
-                           resolution = 'season', 
-                           winter = c(12, 1, 2, 3),
-                           spring = c(4, 5),
-                           summer = c(6, 7, 8, 9),
-                           fall = c(10, 11)) {
-  
-  if (resolution == 'month') {
-    months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-    for (i in seq_along(months)) {
-      column_name <- paste0(months[i], '_tavg')
-      df_temp_agg[[column_name]] <- mean(df_temp_agg$tavg[df_temp_agg$month == i])
-    }
-  }
-  
-  if (resolution == 'season') {
-    df_temp_agg <- df %>%
-      mutate(winter_tavg = mean(tavg[month %in% (winter)]),
-             spring_tavg = mean(tavg[month %in% (spring)]),
-             summer_tavg = mean(tavg[month %in% (summer)]),
-             fall_tavg = mean(tavg[month %in% (fall)])) 
-  }
-  
-  return(df_temp_agg)
-  
-  warning("If the season arguments are left blank, this function defaults to winter = c(12, 1, 2, 3), spring = c(4, 5), summer=c(6, 7, 8, 9), fall = c(10, 11)")
-}
-```
-
-Here is where the categorical variables from the `factor_vars` object (explained above) get converted to factors. This is necessary for the Random Forest procedure to run. 
-
-```{r convert_to_factors}
-# Convert categorical variables to factors
-df[,factor_vars] <- lapply(df[,factor_vars], factor)
-
-```
-
-Next, for our example, there were some changes that needed to be made that may or may not apply to your dataset. For this example, we are changing `slope` and `aspect` from radians to degrees, aggregating by water year, and adding two derived variables: `peak_swe` and `swe_precip_ratio`. We decided to create columns for `peak_swe` and `swe_precip_ratio` because we thought they would be important variables in determining the response variable in our example, which was net primary productivity. This code chuck is where you add your own derived variables that may be important to your analysis. If you wish to aggregate your data in a way different than in our example, this is also the code chunk to do that in.
-
-```{r prepare_data}
-# Change aspect and slope from radians to degrees
-df <- df %>% 
-  mutate(aspect = aspect*(180/pi),
-         slope = slope*(180/pi))
-
-# Group by chosen columns
-df_wy <- df %>%   
-  group_by(across(all_of(group_cols)))
-
-# Aggregate average temperatures using the aggregate_temp() function defined above.
-df_wy <- aggregate_temp(df_wy, 'season')
-
-# Create features for peak swe and the peak_swe/precip ratio
-df_wy <- df_wy %>% 
-  mutate(peak_swe = max(swe)) %>%
-  mutate(swe_precip_ratio = peak_swe/sum(precip)) %>% 
-  summarise_if(is.numeric, mean) %>% 
-  ungroup()
-
-# Rename chosen response variable to "response"
-df_wy <- df_wy %>% 
-  rename("response" = response_var)
-
-# Reorder response variables first and remove any unwanted variables
-df_wy <- df_wy %>% 
-  select(response, everything()) %>%
-  select(-c(tavg, day, month, year, basinID, hillID, zoneID, patchID))
-```
-
-Here, we split our data into two separate data frames, one for each climate scenario. This will allow us to analyze the impact of  climate on variable importance by calculating different importance ranks for each climate scenario, and comparing how each variable gains or loses importance in a warming climate.
-
-This is an optional split: the `clim` variable could have been left as a column in the original dataframe, in which case climate scenario itself would be used as a predictor variable for NPP. For all scenario-type variables, the user can ultimately choose whether or not it is included as a predictor variable or used as the basis of separation to generate a comparison.
-
-
-```{r split_data}
-# Create data frame with only climate scenario 0
-df_wy0 <- df_wy %>% 
-  filter(clim == 0) %>% 
-  select(-c(clim, wy))
-
-# Create data frame with only climate scenario 2
-df_wy2 <- df_wy %>% 
-  filter(clim == 2) %>% 
-  select(-c(clim, wy))
-```
-
-Now, we have two data tables representing the two climate scenarios.
-
-Along with this workflow, this repo also contains a Shiny App. The Shiny App can be used post-analysis to graph some of the relationships that are identified within this feature selection workflow. Here we'll save the newly aggregated datasets to be automatically exported into the Shiny App.
-
 ```{r}
-# For the final product, this will save the aggregated datasets as csv files that will get overwritten if the user changes the way they preppared their data, or if they use a new dataset. While we are working on this project we will comment this code out so that new files don't get written everytime. If the user wants to save older versions of their aggregated data, they just need to give it a unique name every time they run this code.
+load(here("data", "prepared_data.RData"))
 
-# Create and export dataframes that change the response column name back to the variable itself to be used in the Shiny app.
-
-# df_export <- rename(.data = df_wy, !!response_var := response)
-# df_export_wy0 <- rename(.data = df_wy0, !!response_var := response)
-# df_export_wy2 <- rename(.data = df_wy2, !!response_var := response)
-
-# write.csv(df_export, file = here("shiny", "aggregated_datasets", "df_wy.csv"), row.names = FALSE)
-# write.csv(df_export_wy0, file = here("shiny", "aggregated_datasets", "df_wy0.csv"), row.names = FALSE)
-# write.csv(df_export_wy2, file = here("shiny", "aggregated_datasets", "df_wy2.csv"), row.names = FALSE)
+# Rproj shenanigans
+load(here("../RHESSysML/data/prepared_data.RData"))
 ```
 
+First, we want to get a summary description of the data set. This is crucial for many reasons:
 
-
-# Data Description (remove bc redundancy?)
-
-Next, we want to get a summary description of the data set. This is crucial for many reasons:
-
-1.  Shows early on in the process if any variables do not have the expected range, magnitude, class, etc.
+1.  Shows from the start if any variables do not have the expected range, magnitude, class, etc.
 
 2.  Provides information on data set characteristics that are important for decisions later on in the machine learning process.
 
 Here, we display summary statistics for the base climate scenario data.
 
 ```{r describe_data}
-summarize_data <- function(df) {
-  df_name <- deparse(substitute(df))
-  describe(df) %>% 
-    select(vars, n, mean, sd, min, max, range) %>% 
-    mutate(class = lapply(df, class)) %>% 
-    mutate_if(is.numeric, round, 4) %>% 
-    DT::datatable(options = list(pageLength = 7),
-                  caption = paste0("Summary of ", df_name))
-}
+source(here("R", "summarize_data.R"))
 
-summarize_data(df_wy0)
-summarize_data(df_wy2)
+summarize_data(df_wy)
 ```
 
 We can also look at the key study area characteristics. In this Sagehen Creek study area, there are six landscape positions where RHESSys was run.
@@ -278,19 +113,11 @@ Similarly, the `auto_cor()` function works by computing a correlation matrix for
 First, we create data frames containing only the predictor variables to assist with the next steps.
 
 ```{r get_predictors}
-# Save data frames of predictor variables for first climate scenario
-df_wy0_num_preds <- df_wy0 %>% 
+# Save data frames of predictor variables
+df_wy_num_preds <- df_wy %>% 
   select(!response & where(is.numeric))
 
-df_wy0_fpreds <- df_wy0 %>% 
-  select(!response & where(is.factor)) %>% 
-  colnames()
-
-# Save data frames of predictor variables for second climate scenario
-df_wy2_num_preds <- df_wy2 %>% 
-  select(!response & where(is.numeric))
-
-df_wy2_fpreds <- df_wy2 %>% 
+df_wy_fpreds <- df_wy %>% 
   select(!response & where(is.factor)) %>% 
   colnames()
 ```
@@ -306,73 +133,22 @@ Below, there are two methods for setting preference order: (1) Manually creating
 #pref_order2 <- c("precip", "rz_storage", "trans", "evap")
 ```
 
-2. Run this chunk to allow preliminary random forest to automatically determine preference order. Note: even though we will be using Gradient Boosting her for the actual analysis, prelimenary impostance is set using a Random Forest because it is faster.
-
-**looking into child documents to clean up some of this stuff, esp in GB workflow but could be nice in RF one too**
+2. Run this chunk to allow preliminary random forest to automatically determine preference order. Note: even though we will be using Gradient Boosting her for the actual analysis, preliminary importance is set using a Random Forest because it is faster.
 
 ```{r auto_preference_order, warning=FALSE}
-# First climate scenario
 
 # Find preliminary importance using random forest
-imp0 <- train(x = df_wy0 %>% select(!response),
-              y = df_wy0$response,
+imp <- train(x = df_wy %>% select(!response),
+              y = df_wy$response,
               method = 'rf',
               importance = TRUE,
               replace = TRUE,
               trControl = trainControl(method = "none", seed = 4326))
 
 # Set preference order based on variable importance
-pref_order0 <- varImp(imp0$finalModel, scale = FALSE) %>% 
+pref_order <- varImp(imp$finalModel, scale = FALSE) %>% 
   arrange(-Overall) %>% 
   rownames()
-
-# Second climate scenario
-
-# Find preliminary importance using random forest
-imp2 <- train(x = df_wy2 %>% select(!response),
-              y = df_wy2$response,
-              method = 'rf',
-              importance = TRUE,
-              replace = TRUE,
-              trControl = trainControl(method = "none", seed = 4326))
-
-# Set preference order based on variable importance
-pref_order2 <- varImp(imp2$finalModel, scale = FALSE) %>% 
-  arrange(-Overall) %>% 
-  rownames()
-```
-
-```{r create_correlation_functions}
-# Remove variables based on VIF and Correlation thresholds
-remove_vif <- function(predictors.df, vif.threshold = 5, preference.order = pref_order0) {
-  if (!(class(vif.threshold) %in% c("numeric"))) {
-    stop("VIF threshold must be numeric.")
-  }
-  if (vif.threshold < 1) {
-    stop("VIF threshold must be greater than or equal to 1.")
-  }
-  
-  variable.selection <- auto_vif(x = predictors.df,
-                                 vif.threshold = vif.threshold,
-                                 preference.order = preference.order) 
-  
-  return(variable.selection)
-}
-
-remove_cor <- function(predictors.df, cor.threshold = 0.75, preference.order = pref_order0) {
-  if (!(class(cor.threshold) %in% c("numeric"))) {
-    stop("Correlation threshold must be numeric.")
-  }
-  if(cor.threshold < 0 | cor.threshold > 1) {
-    stop("Correlation threshold must be between 0 and 1.")
-  }
-  
-  variable.selection <- auto_cor(x = predictors.df,
-                                 cor.threshold = cor.threshold,
-                                 preference.order = preference.order) 
-  
-  return(variable.selection)
-}
 ```
 
 Thresholds for VIF and correlation can be set below, with default values of 5 and 0.75, respectively. Increasing the thresholds will reduce the number of variables that get removed, but it will increase the likelihood that collinearity influences the results.
@@ -383,21 +159,22 @@ cor.threshold = 0.75
 ```
 
 ```{r remove_multicollinearity, warning = FALSE}
-# Create list of selected variables
-wy0_vif <- remove_vif(df_wy0_num_preds, vif.threshold = vif.threshold, pref_order0)$selected.variables
-wy0_cor <- remove_cor(df_wy0_num_preds, cor.threshold = cor.threshold, pref_order0)$selected.variables
-wy0_select_variables <- unique(append(wy0_vif, wy0_cor))
+# Rproj legacy shit
+source(here("functions", "remove_vif.R"))
+source(here("functions", "remove_cor.R"))
 
-wy2_vif <- remove_vif(df_wy2_num_preds, vif.threshold = vif.threshold, pref_order2)$selected.variables
-wy2_cor <- remove_cor(df_wy2_num_preds, cor.threshold = cor.threshold, pref_order2)$selected.variables
-wy2_select_variables <- unique(append(wy2_vif, wy2_cor))
+source(here("R", "remove_vif.R"))
+source(here("R", "remove_cor.R"))
+
+# Create list of selected variables
+wy_vif <- remove_vif(df_wy_num_preds, vif.threshold = vif.threshold, pref_order)$selected.variables
+wy_cor <- remove_cor(df_wy_num_preds, cor.threshold = cor.threshold, pref_order)$selected.variables
+wy_select_variables <- unique(append(wy_vif, wy_cor))
 
 # Remove numeric variables with multicollinearity
-df_wy0_reduced <- df_wy0 %>% 
-  select(c(response, all_of(df_wy0_fpreds), all_of(wy0_select_variables)))
+df_wy_reduced <- df_wy %>% 
+  select(c(response, all_of(df_wy_fpreds), all_of(wy_select_variables)))
 
-df_wy2_reduced <- df_wy2 %>% 
-  select(c(response, all_of(df_wy2_fpreds), all_of(wy2_select_variables)))
 ```
 
 ## Summary of Removed Variables
@@ -405,168 +182,59 @@ df_wy2_reduced <- df_wy2 %>%
 The next step is intended to elucidate the previous multicollinearity reduction process by creating tables and plots showing which variables were selected and removed, and why. This information can be used to determine whether the auto-generated preference order based on preliminary importance performed satisfactorily, or whether the preference order should be set manually.
 
 ```{r summarize_removed_vars_function, class.source='fold-hide'}
-summarize_removed_vars <- function(clim, table = FALSE) {
-  
-  select_variables <- get(paste0("wy", clim, "_select_variables"))
-  imp <- get(paste0("imp", clim))
-  df <- get(paste0("df_wy", clim))
-  all_preds.df <- df %>% 
-    select(!response)
-  
-  
-  removed_importance <- imp$finalModel["importance"] %>% 
-    data.frame() %>% 
-    rownames_to_column("variable") %>%
-    rename("importance" = "importance..IncMSE") %>% 
-    select(!importance.IncNodePurity) %>% 
-    mutate("importance_rank" = rank(-importance)) %>% 
-    mutate(selected = case_when(variable %in% select_variables ~ "selected",
-                                !variable %in% select_variables ~ "removed")) %>% 
-    relocate("selected", .after = "variable")
-  
-  
-  # Calculating vif again - auto_vif() only returns values for selected variables
-  removed_vif <- vif(all_preds.df)
-  
-  # joining dfs to create summary table of removed and selected variables
-  removed_summary <- removed_importance %>% 
-    left_join(removed_vif, by = "variable") %>% 
-    filter(!(variable %in% factor_vars))
-  
-  if (table == TRUE) {
-    
-    removed_summary <- removed_summary %>% 
-      datatable()
-    
-  }
-  
-  return(removed_summary)
-  
-}
-```
-
-```{r summarize_cor_function, class.source='fold-hide'}
-summarize_cor <- function(clim, selected_removed) {
-  
-  num_preds.df <-  get(paste0("df_wy", clim, "_num_preds"))
-  cor_matrix <- cor(num_preds.df)
-  select_variables <- get(paste0("wy", clim, "_select_variables"))
-
-  cor.df <- reshape2::melt(cor_matrix)
-  cor.df <- cor.df %>% 
-    filter(Var1 != Var2)
-  dups <- duplicated(sort(cor.df$value))
-  cor.df <- cor.df[!dups, ] %>% 
-    rename("correlation" = "value") %>% 
-    mutate(var1_selected = case_when(Var1 %in% select_variables ~ "selected",
-                            !Var1 %in% select_variables ~ "removed")) 
-  
-  if (selected_removed == "selected") {
-    cor.df <- cor.df %>% 
-      filter(var1_selected == "selected")
-  }
-  
-  if (selected_removed == "removed") {
-    cor.df <- cor.df %>% 
-          filter(var1_selected == "removed")
-  }
-  
-  cor.df <- cor.df[order(cor.df$Var1), ]
-  
-  cor.table <- cor.df %>%
-    mutate_if(is.numeric, round, 4) %>% 
-    datatable(options = list())
-  
-  return(cor.table)
-  
-}
-```
-
-```{r plot_removed_imp_function, class.source='fold-hide'}
-plot_removed_imp <- function(clim) {
-  
-  removed_imp_plot <- ggplot(summarize_removed_vars(clim = clim),
-                             aes(x = importance, y = reorder(variable, importance), fill = selected)) +
-    geom_col() + labs(x = "Preliminary Importance", y = "Variable") +
-    theme_light()
-  
-  return(removed_imp_plot)
-  
-}
-```
-
-```{r plot_removed_vif_function, class.source='fold-hide'}
-plot_removed_vif <- function(clim) {
-  
-  removed_vif_plot <- ggplot(summarize_removed_vars(clim = clim),
-                              aes(x = vif, y = reorder(variable, vif), fill = selected)) + 
-    geom_col() + labs(x = "Variable Inflation Factor", y = "Variable") +
-    theme_light()
-  
-  return(removed_vif_plot)
-  
-}
+source(here("R", "summarize_removed_vars.R"))
+source(here("R", "summarize_cor.R"))
+source(here("R", "plot_removed_imp.R"))
+source(here("R", "plot_removed_vif.R"))
 ```
 
 The following functions output two tables and two plots of all variables indicating selection status and the criteria by which those selections were made. The first table shows preliminary importance and VIF, and the second shows correlation between each variable combination. Preliminary importance and VIF are also plotted visually in the two bar charts. 
 
-### Climate Scenario 0 {.tabset}
-
 #### VIF Summary Table
 
-```{r vif_summary_table_0, warning=FALSE}
-summarize_removed_vars(clim = 0, table = TRUE)
+```{r vif_summary_table, warning=FALSE}
+summarize_removed_vars(clim = "", table = TRUE)
 ```
 
 #### Correlation Summary Table
 
-```{r cor_summary_table_0}
-summarize_cor(clim = 0, selected_removed = "removed")
+```{r cor_summary_table}
+summarize_cor(clim = "", selected_removed = "removed")
 ```
 
 #### Importance Summary Plot
 
-```{r imp_summary_plot_0, warning=FALSE}
-plot_removed_imp(clim = 0)
+```{r imp_summary_plot, warning=FALSE}
+plot_removed_imp(clim = "")
 ```
 
 #### VIF Summary Plot
 
-```{r vif_summary_plot_0, warning=FALSE}
-plot_removed_vif(clim = 0)
-```
-
-
-### Climate Scenario 2 {.tabset}
-
-#### VIF Summary Table
-
-```{r vif_summary_table_2, warning=FALSE}
-summarize_removed_vars(clim = 2, table = TRUE)
-```
-
-#### Correlation Summary Table
-
-```{r cor_summary_table_2}
-summarize_cor(clim = 2, selected_removed = "removed")
-```
-
-#### Importance Summary Plot
-
-```{r imp_summary_plot_2, warning=FALSE}
-plot_removed_imp(clim = 2)
-```
-
-#### VIF Summary Plot
-
-```{r vif_summary_plot_2, warning=FALSE}
-plot_removed_vif(clim = 2)
+```{r vif_summary_plot, warning=FALSE}
+plot_removed_vif(clim = "")
 ```
 
 
 # Feature Importance with Gradient Boosting
 
-## Parameter Tuning
+## Gradient Boosting-Specific Data Preparation: One-Hot Encoding
+
+Most gradient boosting models like the one used in this workflow are unable to directly process categorical variables (there are exceptions, such as `LightGBM` - but for the sake of consistency and compatibility with `caret`, we won't explore that package here). This means that in order for the gradient boosting model to be able to handle categorical variables such as `stratumID`, `clim`, `scen`, and `topo` they must be one-hot encoded. One-hot encoding is a way that 
+
+Additionally, the `gbm` package requires that the response variable is split out from the predictor variables to train the model.
+
+```{r}
+# Predictor vs response variables
+y = df_wy$response
+x = df_wy[-1]
+
+# One-hot encoding
+x[,df_wy_fpreds] <- lapply(x[,df_wy_fpreds], factor)
+xhot = x %>% data.table::data.table() %>% mltools::one_hot(cols = df_wy_fpreds)
+```
+
+
+## Hyper-Parameter Tuning
 
 There is a bit more complexity that goes into tuning a Gradient Boosting model than a Random Forest. The `expand.grid()` function will allow us to test multiple values of each parameter to optimize model performance. Some of the standard hyperparameters that we will tune here are:
 
@@ -578,7 +246,7 @@ There is a bit more complexity that goes into tuning a Gradient Boosting model t
  - `min_child_weight` (Minimum Sum of Instance Weight)
  - `subsample` (Subsample Percentage)
  
-Out of all these parameters, all except `nrounds` are used to prevent overfitting, which is a more common problem in boosting models than RFs. The inherent randomness of RFs prevents overfitting relatively effectively, but more care is required with GB. For example, the `colsample_bytree` parameter mimics the functionality of a RF by randomly sampling the specified proportions of columns to build a boosted tree.
+Out of all these parameters, all except `nrounds` are used to prevent overfitting, which is a more common problem in boosting models than random forests. The inherent randomness of random forests prevents overfitting relatively effectively, but more care is required with gradient boosting. For example, the `colsample_bytree` parameter mimics the functionality of a random forest model by randomly sampling the specified proportions of columns to build a boosted tree.
 
 Additionally, we will use `trainControl()` to implement 10-fold cross-validation to further avoid overfitting.
 
@@ -587,8 +255,7 @@ Additionally, we will use `trainControl()` to implement 10-fold cross-validation
 fitControl <- caret::trainControl(
   method = "cv",
   number = 10,
-  savePredictions = 'final'
-)
+  savePredictions = 'final')
 
 tune_grid <- expand.grid(
   nrounds = seq(from = 100, to = 800, by = 50),
@@ -600,107 +267,48 @@ tune_grid <- expand.grid(
   subsample = c(.5, .7, .8, 1))
 ```
 
--------------------------------------------
-full cv, gbm
+Note: these parameters are unique to the `gbm` package; there are many packages to implement gradient boosting 
 
+Running the code chunk below essentially trains a new gradient boosting model for every possible combination of the parameters listed above in the `tune_grid` object; this means that 1,200 individual models are trained! This is slow.
+
+*To save time when running this workflow, the code to generate the gradient boosting model is commented out, and a pre-run model is loaded from the `models` folder. If you would like to experiment with creating your own model, uncomment the code below - just be aware that it will take a while! Alternatively, small manual tweaks can be made to the model by looking at the `bestTune` object inside of `gbm_model_cv`, then using a modified `tune_grid` that only has single numbers instead of vectors for each hyper-parameter.*
 
 ```{r}
 set.seed(4326)
 
-gbm_model_cv <- caret::train(
+# gbm_model_cv <- caret::train(
+#   x = xhot,
+#   y = y,
+#   trControl = fitControl,
+#   tuneGrid = tune_grid,
+#   metric = 'RMSE',
+#   method = "gbm",
+#   verbose = FALSE)
+
+gbm_model_cv <- read_rds(here("models/GBm.rds"))
+```
+
+To get the 
+
+```{r}
+best_grid <- gbm_model_cv$bestTune
+
+gbm_model_cv_best <- caret::train(
   x = xhot,
   y = y,
   trControl = fitControl,
-  tuneGrid = tune_grid,
+  tuneGrid = best_grid,
   metric = 'RMSE',
   method = "gbm",
-  verbose = FALSE
-)
-```
-
-----------------------------------------------
-full cv, xgboost
-```{r}
-xgb_model_cv = train(x=xhot,
-                      y=y,
-                      method = "xgbTree",
-                      trControl = fitControl,
-                      tuneGrid = tune_grid,
-                      verbosity = 0)
-
-plot(xgb_model_cv)
-
-# helper function for the plots
-# tuneplot <- function(x, probs = .90) {
-#   ggplot(x) +
-#     coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
-#     theme_bw()
-# }
-# 
-# tuneplot(xgb_tune)
-# from https://www.kaggle.com/code/pelkoja/visual-xgboost-tuning-with-caret/report
+  verbose = FALSE)
 ```
 
 
-Comparison of prediction results
+### Assessing Feature Importance
 
-```{r}
-predict(gbm_model_cv, xhot)
-predict(xgb_model_cv, xhot)
-```
+Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest and gradient boosting offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Despite some of their shortcomings, these importance measures can provide insights that are further explored in the random forest workflow.
 
-```{r}
-gbm_model_cv$results$RMSE
-gbm_model_cv$results$Rsquared
-
-xgb_model_cv$results$RMSE
-xgb_model_cv$results$Rsquared
-```
-
-
-We can look at the optimized tuning parameters using the `bestTune` feature of the `train()` function:
-
-```{r}
-params0 = xgb_model_cv$bestTune
-params2 = gbm_model_cv$bestTune
-```
-
-
-Find variable importance:
-
-```{r}
-# might try with `gbm` instead of `xgb` to be compatible with varImp()?
-
-xgb_imp = varImp(xgb_model_cv, scale = FALSE)
-list_impx = xgb_impx$importance
-list_impx = list_impx %>% mutate(Variable = row.names(list_impx)) %>% 
-  filter(list_impx$Overall != 0)
-
-gbm_imp = varImp(gbm_model_cv, scale = FALSE)
-list_imp = gbm_imp$importance
-list_imp = list_imp %>% mutate(Variable = row.names(list_imp)) %>% 
-  filter(list_imp$Overall != 0)
-
-```
-
-
-```{r}
-# default plotting function
-plot(xgb_imp, top = 15)
-plot(gbm_imp, top = 15)
-
-
-# using plotting function from rf workflow
-xgb_plot <- plot_imp(list_impx)
-gbm_plot <- plot_imp(list_imp)
-
-wy0_plot + wy2_plot 
-
-```
-
-Assessing feature importance is a complex task with many possible approaches. Tree based models like random forest offer convenient "split-improvement" measures, like mean increase in purity and minimum depth, which are intrinsically derived during model construction. However, these have been shown to be biased towards variables with many categories or large value ranges (Strobl et al. 2007). Despite some of their shortcomings, these importance measures can provide insights are further explored at the end of this document.
-
-As the primary measure of importance we instead use partial permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps...
+As the primary measure of importance we instead use partial permutation importance via the `varImp` function. Permutation importance has been tested and determined to be the most unbiased importance metric for data with a mix of categorical and continuous variables with a variety of classes and ranges, respectively. This is calculated in the following steps:
 
 1. Assess prediction accuracy (mean squared error) of the model on the out-of-bag data.
 
@@ -710,134 +318,54 @@ As the primary measure of importance we instead use partial permutation importan
 
 4. Importance of the permuted variable is deemed to be the mean loss in accuracy when its values were permuted.
 
-```{r variable_importance}
-imp_wy0 <- varImp(rf_wy0$finalModel, scale = FALSE) %>% 
-  rownames_to_column("Variable") %>% 
-  mutate(Rank = rank(-Overall))
+```{r}
 
-imp_wy2 <- varImp(rf_wy2$finalModel, scale = FALSE) %>% 
-  rownames_to_column("Variable") %>% 
-  mutate(Rank = rank(-Overall))
+gbm_imp = varImp(gbm_model_cv_best, scale = FALSE)
+imp_wy_gb = gbm_imp$importance
+imp_wy_gb = imp_wy_gb %>% mutate(Variable = row.names(imp_wy_gb)) %>% 
+  filter(imp_wy_gb$Overall != 0)
+
 ```
+
 
 Save the above importance dataframes to be used in the Shiny App.
 
 ```{r}
 # This will export the importance rank datasets as csv files to be used in the shiny app. However, once again we will leave this commented out so that it doesn't export new csv files every time the workflow runs.
-
-# write.csv(imp_wy0, file = here("shiny", "aggregated_datasets", "imp_wy0.csv"), row.names = FALSE)
-# write.csv(imp_wy2, file = here("shiny", "aggregated_datasets", "imp_wy2.csv"), row.names = FALSE)
+saveRDS(imp_wy_gb, file = here("shiny", "aggregated_datasets", "imp_wy_gb.RDS"))
 ```
-
 
 # Model Evaluation
 
-The following section provides visualizations and statistics to evaluate the random forest performance.
-
-First, simply calling the random forest shows a summary of the results, including percent variance explained.
+The following section provides visualizations and statistics to evaluate the gradient boosting model performance.
 
 ```{r}
-rf_wy0_fit <- round(tail(rf_wy0$finalModel$rsq, 1)*100, 2)
-
-rf_wy0$finalModel
-```
-
-The model for the base climate scenario explained `r rf_wy0_fit`% of variance in NPP.
-
-```{r}
-rf_wy2_fit <- round(tail(rf_wy2$finalModel$rsq, 1)*100, 2)
-
-rf_wy2$finalModel
-```
-
-The model for the +2 degree Celsius climate scenario explained `r rf_wy2_fit`% of variance in NPP.
-
-Next, we can implement a permutation test cross-validation for the random forest models. The statistics are based on prediction error on the withheld data.
-
-```{r}
-df_wy0_reduced_allpredictors <- df_wy0_reduced %>% 
-  select(!response)
-
-rf_wy0_cv <- rf.crossValidation(x = rf_wy0$finalModel, xdata = df_wy0_reduced_allpredictors, p = 0.1, n = 10)
-
-rf_wy0_cv_fit <- round(tail(rf_wy0_cv$model.varExp, 1), 2)
-
-rf_wy0_cv
-```
-
-The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the base climate scenario data explains `r rf_wy0_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
-
-```{r}
-df_wy2_reduced_allpredictors <- df_wy2_reduced %>% 
-  select(!response)
-
-rf_wy2_cv <- rf.crossValidation(x = rf_wy2$finalModel, xdata = df_wy2_reduced_allpredictors, p = 0.1, n = 10)
-
-rf_wy2_cv_fit <- round(tail(rf_wy2_cv$model.varExp, 1), 2)
-
-rf_wy2_cv
-```
-
-The results above indicate that, through 10-fold cross validation with 10% of data withheld, the model for the +2 degree Celsius climate scenario data explains `r rf_wy2_cv_fit`% of the variance in NPP. This result is lower than our original fit % explained.
-
-# Visualize Results
-
-Now, we can visualize the results of the Random Forest feature selection.
-
-The following table shows the relative importance of predictor variables between the two climate scenarios.
-
-```{r}
-df_imp_table <- function(imp_wy_df1, imp_wy_df2) {
-  
-  df_imp <- imp_wy_df1 %>% 
-    full_join(imp_wy_df2, by = "Variable") %>% 
-    mutate(Diff = Rank.x-Rank.y) %>% 
-    select(-c(Overall.x, Overall.y)) %>% 
-    rename("Rank (0)" = Rank.x,
-           "Rank (2)" = Rank.y) %>% 
-    arrange(`Rank (0)`)
-  
-  df_imp %>%
-  kable(align = "r",
-        caption = "Difference in variable importance for the two climate scenarios") %>%
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  column_spec(column = 4,
-              color = ifelse(is.na(df_imp$Diff), "grey",
-                           ifelse(df_imp$Diff > 0, "green",
-                                  ifelse(df_imp$Diff == 0, "grey", "red"))))
-  
-}
-
-df_imp_table(imp_wy0, imp_wy2)
+gb_wy_fit <- round(tail(gbm_model_cv_best$results$Rsquared, 1)*100, 2)
 
 ```
 
-We see that precipitation and rz_storage are the first and second most important predictors of NPP for both climate scenarios. The highest difference is evaporation - which is third most important for the base climate scenario and sixth for the +2 degree Celsius warming scenario. This indicates that the relationship between NPP and evaporation has changed given warming, which could be investigated further. This process can be repeated for all other observations found in the table.
+The model explained `r gb_wy_fit`% of variance in NPP.
 
-This same information is plotted below. The variable importance plots also reveal relative magnitude of importance between variables. 
+# Visualize results
+
+```{r}
+# doesnt work without splitting by climate scenario
+source(here("R", "df_imp_table.R"))
+
+
+```
 
 ```{r plot_imp}
-plot_imp <- function(varimp_df) {
-  df_name <- deparse(substitute(varimp_df))
-  ggplot(data = varimp_df, aes(x = Overall, y = reorder(Variable, Overall))) +
-    geom_col() +
-    theme_light() +
-    theme(legend.position = "none",
-          axis.text.x = element_blank()) +
-    labs(title = paste0("Variable Importance for \n climate scenario ", str_sub(df_name, -length(df_name))),
-         x = "Importance",
-         y = "Variable")
-}
+source(here("R", "plot_imp.R"))
 
-wy0_plot <- plot_imp(imp_wy0)
-wy2_plot <- plot_imp(imp_wy2)
-
-wy0_plot + wy2_plot 
+# function still gives plot, but title is wrong
+source(here("functions", "plot_imp.R"))
+wy_plot <- plot_imp(imp_wy_gb)
+wy_plot
 ```
 
-Let's save the above importance plots to be used in the Shiny App.
 
-```{r, include = FALSE}
-importance_plots <- wy0_plot + wy2_plot 
-ggsave(importance_plots, filename = "importance_plots.png", path = here("shiny", "www"))
+```{r}
+gbm_model_cv_best$results$RMSE
+gbm_model_cv_best$results$Rsquared
 ```
